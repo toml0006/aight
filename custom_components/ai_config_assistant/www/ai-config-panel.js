@@ -589,6 +589,8 @@ if (!customElements.get('ai-config-panel')) {
         .conversations-toggle svg {
           width: 20px;
           height: 20px;
+          color: white;
+          stroke: white;
         }
 
         .conversations-list {
@@ -722,6 +724,16 @@ if (!customElements.get('ai-config-panel')) {
         .chat-header .conversations-toggle:hover {
           color: white;
           background: rgba(255, 255, 255, 0.1);
+        }
+
+        .chat-header .conversations-toggle svg {
+          color: rgba(255, 255, 255, 0.8);
+          stroke: rgba(255, 255, 255, 0.8);
+        }
+
+        .chat-header .conversations-toggle:hover svg {
+          color: white;
+          stroke: white;
         }
 
         .chat-status {
@@ -895,6 +907,20 @@ if (!customElements.get('ai-config-panel')) {
           background: var(--secondary-background-color);
         }
 
+        .chat-footer .conversations-toggle svg {
+          color: var(--primary-text-color);
+          stroke: var(--primary-text-color);
+        }
+
+        /* General SVG styling to ensure visibility */
+        button svg {
+          pointer-events: none;
+        }
+        
+        button svg path {
+          pointer-events: none;
+        }
+
         .chat-input-wrapper {
           display: flex;
           gap: 12px;
@@ -994,6 +1020,14 @@ if (!customElements.get('ai-config-panel')) {
           align-items: center;
           justify-content: center;
           font-size: 12px;
+        }
+
+        .label-icon ha-icon {
+          --mdc-icon-size: 12px;
+          width: 12px;
+          height: 12px;
+          color: white;
+          flex-shrink: 0;
         }
         
         .label-dropdown {
@@ -1263,9 +1297,16 @@ if (!customElements.get('ai-config-panel')) {
           transform: none;
         }
 
+        .chat-send-btn:disabled svg {
+          color: rgba(255, 255, 255, 0.5);
+          stroke: rgba(255, 255, 255, 0.5);
+        }
+
         .chat-send-btn svg {
           width: 18px;
           height: 18px;
+          color: white;
+          stroke: white;
         }
 
         .chat-quick-actions {
@@ -2072,12 +2113,12 @@ if (!customElements.get('ai-config-panel')) {
       });
     }
     
-    // Load saved settings
-    this._loadSettings();
-    
     // Initialize label picker properties
     this._selectedLabelId = null;
     this._availableLabels = [];
+    
+    // Load saved settings
+    this._loadSettings();
   }
 
   _confirmDetectedEntities() {
@@ -3005,13 +3046,10 @@ entities:
     // Transform slash command to natural language prompt
     const prompt = this._transformSlashCommand(command);
     
-    // Add user message showing what they selected
-    this._addChatMessage('user', command);
-    
-    // Add the transformed prompt and send it
+    // Add the transformed prompt but DON'T send automatically
     chatInput.value = prompt;
+    chatInput.focus();
     this._hideAutocomplete();
-    this._sendChatMessage();
   }
 
   _transformSlashCommand(command) {
@@ -3088,16 +3126,18 @@ entities:
       return;
     }
     
-    // Transform and send the command
+    // Transform the command and populate input (but don't send)
     const prompt = this._transformSlashCommand(cleanCommand);
     const chatInput = this.shadowRoot.getElementById('chat-input');
     
-    // Add user message showing the command
-    this._addChatMessage('user', cleanCommand);
-    
-    // Set the prompt (and any remaining text) and send
+    // Set the prompt (and any remaining text) but DON'T send automatically
     chatInput.value = remainingText ? `${prompt} ${remainingText}` : prompt;
-    this._sendChatMessage();
+    
+    // Focus the input so user can review and send manually
+    chatInput.focus();
+    
+    // Hide autocomplete
+    this._hideAutocomplete();
   }
 
   // Entity autocomplete methods
@@ -4671,7 +4711,7 @@ Please share this information when reporting issues.`;
       noLabelOption.classList.add('selected');
     }
     noLabelOption.innerHTML = `
-      <span class="label-icon" style="background-color: #888;">🏷️</span>
+      <span class="label-icon" style="background-color: #888;">${this._renderIcon('🏷️')}</span>
       <span>No label</span>
     `;
     noLabelOption.addEventListener('click', () => this._selectLabel(null));
@@ -4689,7 +4729,7 @@ Please share this information when reporting issues.`;
       const labelIcon = label.icon || '🏷️';
       
       option.innerHTML = `
-        <span class="label-icon" style="background-color: ${labelColor};">${labelIcon}</span>
+        <span class="label-icon" style="background-color: ${labelColor};">${this._renderIcon(labelIcon)}</span>
         <span>${label.name}</span>
       `;
       
@@ -4742,7 +4782,7 @@ Please share this information when reporting issues.`;
     if (!labelIcon || !labelName) return;
     
     if (!this._selectedLabelId) {
-      labelIcon.textContent = '🏷️';
+      labelIcon.innerHTML = this._renderIcon('🏷️');
       labelIcon.style.backgroundColor = '#888';
       labelName.textContent = 'No label selected';
       return;
@@ -4751,12 +4791,12 @@ Please share this information when reporting issues.`;
     // Find the selected label in available labels
     const selectedLabel = this._availableLabels.find(label => label.label_id === this._selectedLabelId);
     if (selectedLabel) {
-      labelIcon.textContent = selectedLabel.icon || '🏷️';
+      labelIcon.innerHTML = this._renderIcon(selectedLabel.icon || '🏷️');
       labelIcon.style.backgroundColor = selectedLabel.color || '#888888';
       labelName.textContent = selectedLabel.name;
     } else {
       // Fallback if label not found (maybe it was deleted)
-      labelIcon.textContent = '🏷️';
+      labelIcon.innerHTML = this._renderIcon('🏷️');
       labelIcon.style.backgroundColor = '#888';
       labelName.textContent = 'Label not found';
     }
@@ -4773,6 +4813,21 @@ Please share this information when reporting issues.`;
       // Fallback: open in new tab
       window.open(labelUrl, '_blank');
     }
+  }
+
+  _renderIcon(iconString) {
+    // Handle MDI icons (mdi:icon-name format)
+    if (typeof iconString === 'string' && iconString.toLowerCase().startsWith('mdi:')) {
+      return `<ha-icon icon="${iconString}"></ha-icon>`;
+    }
+    
+    // Handle other icon formats (might be other icon systems in the future)
+    if (typeof iconString === 'string' && iconString.includes(':')) {
+      return `<ha-icon icon="${iconString}"></ha-icon>`;
+    }
+    
+    // Handle text/emoji icons or fallback
+    return iconString || '🏷️';
   }
 
   _escapeHtml(text) {
@@ -4899,15 +4954,23 @@ Please share this information when reporting issues.`;
     try {
       this._addChatMessage('system', `Deploying ${configType}...`);
       
+      // Prepare service data with optional label
+      const serviceData = {
+        config: config,
+        type: configType
+      };
+      
+      // Include label if one is selected
+      if (this._selectedLabelId) {
+        serviceData.label_id = this._selectedLabelId;
+      }
+      
       // Call the deploy service
       let result = await this._hass.callWS({
         type: 'call_service',
         domain: 'ai_config_assistant',
         service: 'deploy_config',
-        service_data: {
-          config: config,
-          type: configType
-        },
+        service_data: serviceData,
         return_response: true
       });
       
