@@ -1,0 +1,27 @@
+control_living_room_environment:
+  alias: Control Living Room Environment
+  description: A script to control the living room fan and lights for optimal comfort.
+  mode: single
+  sequence:
+  - service: fan.turn_on
+    target:
+      entity_id: fan.living_room_fan
+  - service: light.turn_on
+    target:
+      entity_id: light.living_room_rgbww_lights
+  - service: switch.turn_on
+    target:
+      entity_id: switch.decorative_lights
+  - data:
+      percentage: 70
+    service: fan.set_percentage
+    target:
+      entity_id: fan.percentage_full_fan
+turn_on_kitchen_lights_at_noon:
+  alias: Turn On Kitchen Lights at Noon
+  description: This script turns on the kitchen lights at noon.
+  mode: single
+  sequence:
+  - service: light.turn_on
+    target:
+      entity_id: light.kitchen_lights

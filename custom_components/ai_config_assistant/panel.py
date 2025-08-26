@@ -33,8 +33,11 @@ async def async_register_panel(hass: HomeAssistant) -> None:
         ])
         _LOGGER.info("Registered static path: %s -> %s", url_path, www_dir)
         
-        # Add the JavaScript URL
-        frontend.add_extra_js_url(hass, f"{url_path}/ai-config-panel.js")
+        # Add the JavaScript URL with strong cache busting
+        import time
+        import hashlib
+        cache_buster = f"{int(time.time())}-{hashlib.md5(str(time.time()).encode()).hexdigest()[:8]}"
+        frontend.add_extra_js_url(hass, f"{url_path}/ai-config-panel.js?v={cache_buster}&bust={int(time.time())}")
         
         frontend.async_register_built_in_panel(
             hass,
@@ -45,7 +48,7 @@ async def async_register_panel(hass: HomeAssistant) -> None:
             config={
                 "_panel_custom": {
                     "name": "ai-config-panel",
-                    "js_url": f"{url_path}/ai-config-panel.js",
+                    "js_url": f"{url_path}/ai-config-panel.js?v={cache_buster}&bust={int(time.time())}",
                     "embed_iframe": False,
                     "trust_external": False,
                 }

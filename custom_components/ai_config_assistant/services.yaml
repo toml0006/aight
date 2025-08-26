@@ -122,3 +122,22 @@ reload:
   name: Reload Integration
   description: Reload the AI Configuration Assistant integration without restarting Home Assistant
   fields: {}
+
+generate_with_ai_task:
+  name: Generate with AI Task
+  description: Generate configuration using the AI Task entity framework
+  fields:
+    instruction:
+      name: Instruction
+      description: Natural language instruction for what to generate
+      required: true
+      example: "Create an automation that turns on lights when motion is detected"
+      selector:
+        text:
+          multiline: true
+    schema:
+      name: Output Schema
+      description: Optional JSON schema to validate the output
+      required: false
+      selector:
+        object:

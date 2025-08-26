@@ -3,7 +3,24 @@
     "step": {
       "user": {
         "title": "Aight Setup",
-        "description": "Configure Aight - Your AI Configuration Assistant",
+        "description": "Choose how to power your AI Configuration Assistant",
+        "data": {
+          "use_conversation_agent": "Use existing conversation agent (Recommended if available)"
+        },
+        "data_description": {
+          "use_conversation_agent": "Use an existing AI conversation agent (like OpenAI, Google Gemini, or Anthropic) that you've already configured in Home Assistant"
+        }
+      },
+      "select_agent": {
+        "title": "Select Conversation Agent",
+        "description": "Choose which AI agent to use for generating configurations",
+        "data": {
+          "conversation_agent_id": "Conversation Agent"
+        }
+      },
+      "llm_provider": {
+        "title": "Configure LLM Provider",
+        "description": "Set up a direct connection to an LLM provider",
         "data": {
           "llm_provider": "LLM Provider",
           "api_key": "API Key"
@@ -15,7 +32,11 @@
         "data": {
           "default_model": "Default Model",
           "temperature": "Temperature (0.0 - 2.0)",
-          "max_tokens": "Max Tokens (100 - 4000)"
+          "max_tokens": "Max Tokens (100 - 4000)",
+          "auto_label": "Auto-assign Label"
+        },
+        "data_description": {
+          "auto_label": "Label to automatically assign to all automations, scripts, and scenes created by this integration. Will be created with the AIGHT icon. Leave empty to disable."
         }
       }
     },
@@ -32,7 +53,11 @@
         "description": "Update your Aight settings",
         "data": {
           "temperature": "Temperature (0.0 - 2.0)",
-          "max_tokens": "Max Tokens (100 - 4000)"
+          "max_tokens": "Max Tokens (100 - 4000)",
+          "auto_label": "Auto-assign Label"
+        },
+        "data_description": {
+          "auto_label": "Label to automatically assign to all automations, scripts, and scenes created by this integration. Will be created with the AIGHT icon. Leave empty to disable."
         }
       }
     }

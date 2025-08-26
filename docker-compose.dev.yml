@@ -1,0 +1,32 @@
+services:
+  homeassistant:
+    container_name: homeassistant-dev
+    image: ghcr.io/home-assistant/home-assistant:2025.8.0
+    volumes:
+      # Mount your development code directly (writable for development)
+      - ./custom_components/ai_config_assistant:/config/custom_components/ai_config_assistant
+      - ./www/ai-config-assistant:/config/www/ai-config-assistant
+      # Persist config between restarts
+      - ./dev-config:/config
+    environment:
+      - TZ=America/New_York  # Change to your timezone
+    restart: unless-stopped
+    # network_mode: host  # Doesn't work on macOS
+    ports:
+      - "8123:8123"
+
+  # Optional: Add a database for persistence
+  # Commented out due to disk space - using SQLite instead
+  # postgres:
+  #   container_name: homeassistant-postgres
+  #   image: postgres:15
+  #   volumes:
+  #     - postgres-data:/var/lib/postgresql/data
+  #   environment:
+  #     POSTGRES_DB: homeassistant
+  #     POSTGRES_USER: homeassistant
+  #     POSTGRES_PASSWORD: homeassistant
+  #   restart: unless-stopped
+
+# volumes:
+#   postgres-data:

@@ -144,3 +144,23 @@ lerna-debug.log*
 package-lock.json
 yarn.lock
 pnpm-lock.yaml
+
+# Development environment files
+dev-config/.storage/
+dev-config/.cloud/
+dev-config/home-assistant.log*
+dev-config/home-assistant_v2.db*
+dev-config/.HA_VERSION
+dev-config/deps/
+dev-config/tts/
+dev-config/custom_components/
+dev-config/www/
+dev-config/blueprints/
+.dev_config
+.dev_config.json
+
+# Docker volumes
+postgres-data/
+
+# Temporary release files
+temp_release/

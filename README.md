@@ -1,6 +1,6 @@
 # Aight - AI Configuration Assistant for Home Assistant
 
-🚀 **v1.4.0** - The most advanced Home Assistant AI configuration tool with **conversational chat interface**!
+🚀 **v1.5.0** - The most advanced Home Assistant AI configuration tool with **cross-device conversation sync**!
 
 📖 **[Documentation & Demo](https://toml0006.github.io/aight/)** | 📦 **[Download Latest](https://github.com/toml0006/aight/releases/latest)** | 💬 **[Community](https://github.com/toml0006/aight/discussions)**
 
@@ -10,7 +10,17 @@
 
 💬 **Conversational Chat Interface**: Chat naturally with AI - no forms, no interruptions, just results!
 
+☁️ **Cross-Device Conversation Sync**: Your chat history follows you across all your devices
+
+🏷️ **Auto-Labeling**: Automatically labels all created entities with customizable tags
+
 🤖 **Smart Entity Detection**: Automatically finds relevant entities based on your prompt
+
+⚡ **Slash Commands**: Quick access to configuration types with `/automation`, `/scene`, `/script`, and more
+
+📥 **Flexible Deployment**: Deploy to Home Assistant database or export as YAML files
+
+🎯 **Human-Readable IDs**: Generated configurations use descriptive IDs instead of timestamps
 
 🚀 **One-Click Deployment**: Deploy automations, scripts, and scenes directly to Home Assistant
 
@@ -18,32 +28,33 @@
 
 🔍 **Multi-LLM Support**: OpenAI, Anthropic Claude, Google Gemini, Groq, Ollama, and OpenRouter
 
-🛠️ **Advanced Error Handling**: Detailed error logs with progressive disclosure for easy debugging
+🎨 **Beautiful UI**: Modern, responsive interface with entity autocomplete and syntax highlighting
 
-📱 **Mobile Responsive**: Beautiful interface that works perfectly on phones, tablets, and desktops
+📱 **Mobile Responsive**: Perfect experience on phones, tablets, and desktops
 
 ## Supported Configuration Types
 
 - **Automations**: Create complex automations with triggers, conditions, and actions
-- **Scripts**: Build reusable script sequences
+- **Scripts**: Build reusable script sequences  
 - **Scenes**: Define lighting and device scenes
 - **Dashboards**: Generate Lovelace dashboard configurations
 - **Cards**: Create individual dashboard cards
 - **Template Sensors**: Build template sensors and binary sensors
+- **Helpers**: Create input helpers (boolean, number, text, select, datetime, button)
 
 ## Installation
 
 ### 🚀 Quick Install - Latest Version
 
-[![Download Latest Version](https://img.shields.io/badge/Download-v1.4.0%20Latest-success?style=for-the-badge&logo=homeassistant)](https://github.com/toml0006/aight/releases/latest/download/aight.zip)
+[![Download Latest Version](https://img.shields.io/badge/Download-v1.5.0%20Latest-success?style=for-the-badge&logo=homeassistant)](https://github.com/toml0006/aight/releases/latest/download/aight.zip)
 
-**v1.4.0** includes the revolutionary **conversational chat interface**:
-- 💬 Natural chat experience - just type what you want!
-- 🎯 Automatic entity detection - no manual selection needed
-- 🚀 One-click deployment to Home Assistant
-- 🔄 Iterative refinement with follow-up messages
-- 🛠️ Advanced error logging for easy debugging
-- 📱 Mobile-first responsive design
+**v1.5.0** includes revolutionary new features:
+- ☁️ **Cross-device conversation sync** - Chat history follows you everywhere
+- 🏷️ **Auto-labeling** - Automatically tag created entities
+- ⚡ **Slash commands** - Quick access with `/automation`, `/scene`, etc.
+- 📥 **Export to YAML** - Choose between database deployment or file export
+- 🎯 **Human-readable IDs** - No more timestamp-based IDs
+- 🎨 **Enhanced UI** - Tabs in header, entity autocomplete everywhere
 
 ### HACS Installation
 
@@ -82,120 +93,157 @@
 3. Search for "Aight" or "AI Configuration Assistant"
 4. Follow the setup wizard
 
-### Step 2: Configure Your LLM Provider
+### Step 2: Choose Your Setup Method
 
-Choose from supported providers and add your API key:
+You have two options:
 
-#### OpenAI
+#### Option A: Use Existing Conversation Agent (Recommended)
+If you already have an AI conversation agent configured (like OpenAI, Claude, or Gemini), Aight can use it directly.
+
+#### Option B: Direct LLM Configuration
+Configure a direct connection to your preferred LLM provider:
+
+##### OpenAI
 - **Models**: GPT-4, GPT-4-turbo, GPT-3.5-turbo
 - **API Key**: Get from [OpenAI Platform](https://platform.openai.com/api-keys)
 
-#### Anthropic Claude
+##### Anthropic Claude
 - **Models**: Claude-3 Opus, Sonnet, Haiku
 - **API Key**: Get from [Anthropic Console](https://console.anthropic.com/)
 
-#### Google Gemini
+##### Google Gemini
 - **Models**: Gemini Pro, Gemini Pro Vision
 - **API Key**: Get from [Google AI Studio](https://makersuite.google.com/app/apikey)
 
-#### Other Providers
+##### Other Providers
 - **Mistral**: Mistral Large, Medium, Small
 - **Groq**: Llama3-70B, Mixtral-8x7B
 - **Ollama**: Local models (no API key required)
+- **OpenRouter**: Access to multiple models through one API
 
-## 🎯 How It Works - Conversational Interface
+### Step 3: Advanced Settings
 
-### The New Chat Experience
+- **Auto-Label**: Set a label (default: "AIGHT") to automatically tag all created entities
+- **Temperature**: Control AI creativity (0.0 = focused, 2.0 = creative)
+- **Max Tokens**: Set response length limit
 
-![Chat Interface](https://img.shields.io/badge/NEW-Conversational%20Chat-brightgreen?style=for-the-badge)
+## 🎯 How to Use
 
-1. **Open the Chat Tab**: Navigate to "AI Config" panel and click the "Chat" tab
-2. **Just Type**: Describe what you want in natural language
-3. **Get Results**: The AI automatically detects entities and generates configuration
-4. **Deploy Instantly**: Click the Deploy button to add it to Home Assistant
-5. **Refine as Needed**: Say "also turn on the TV" or "but only on weekdays"
+### Chat Interface
+
+1. **Open Aight**: Navigate to "AI Config" in your sidebar
+2. **Start Chatting**: Just type what you want to create
+3. **Use Slash Commands** (optional):
+   - `/automation` - Create an automation
+   - `/scene` - Create a scene
+   - `/script` - Create a script
+   - `/dashboard` - Create a dashboard
+   - `/template` - Create a template sensor
+   - `/helper` - Create an input helper
+4. **Review Configuration**: The AI generates YAML with a preview
+5. **Deploy or Export**:
+   - Click "Deploy to Database" to add directly to Home Assistant
+   - Click "Export to YAML" to download the configuration file
+
+### Conversation Management
+
+- **Conversation History**: Access your chat history in the right sidebar
+- **Cross-Device Sync**: Your conversations sync across all devices
+- **Resume Chats**: Click any conversation to continue where you left off
+- **Delete Conversations**: Remove old chats with the trash icon
 
 ### Example Conversation
 
 ```
-You: Alert me when the garage door is left open for more than 10 minutes
+You: /automation when I arrive home, turn on the entrance lights
 
-🤖 Assistant: Great! I've created an automation for you:
-[Shows YAML configuration with Deploy button]
+🤖 Assistant: I'll create an automation that turns on entrance lights when you arrive home:
+[Shows YAML configuration with Deploy/Export buttons]
 
-You: Also send the alert to my phone
+You: also unlock the front door
 
-🤖 Assistant: I've updated the automation to include phone notifications:
+🤖 Assistant: I've updated the automation to also unlock the front door:
 [Shows updated configuration]
+
+You: but only after sunset
+
+🤖 Assistant: Added a sunset condition to the automation:
+[Shows final configuration]
 ```
 
-### Chat Commands
-- **"reload"** - Reload automations after deployment
-- **"also [action]"** - Add additional actions
-- **"but only [condition]"** - Add conditions
-- **"change [detail]"** - Modify specific parts
+### Entity Autocomplete
 
-## Usage
+In the Validate and Preview tabs:
+- Start typing an entity ID to get suggestions
+- Uses Home Assistant's native autocomplete system
+- Shows entity states and attributes
 
-### Classic Form Interface (Still Available)
+## Advanced Features
 
-1. Navigate to the "AI Config" panel in your Home Assistant sidebar
-2. Click the "Form" tab for the traditional interface
-3. Select the configuration type you want to create
-4. Describe what you want in natural language
-5. Click "Generate Configuration"
-6. Review the generated YAML and live preview
-7. Copy or save the configuration
+### Auto-Labeling
+- Automatically applies labels to all created entities
+- Default label: "AIGHT" with star icon
+- Customize in integration options
+- Makes it easy to find AI-generated configurations
 
-### Example Prompts
+### Human-Readable IDs
+- Generates descriptive IDs like `evening_lights_automation`
+- No more timestamp-based IDs like `automation_1234567890`
+- Automatic collision detection ensures uniqueness
 
-**Automations:**
-- "Turn on living room lights when motion is detected after sunset"
-- "Send notification when front door is left open for 5 minutes"  
-- "Turn off all lights when everyone leaves home"
+### Deployment Options
+- **Database Deployment**: Adds configurations directly to Home Assistant
+- **YAML Export**: Downloads configuration files for manual integration
+- **Template Sensors**: Exports to `template_sensors.yaml` with instructions
 
-**Scripts:**
-- "Good night routine: turn off all lights and lock doors"
-- "Movie mode: dim lights to 20% and turn on TV"
-- "Morning routine: turn on coffee maker and bathroom lights"
-
-**Dashboards:**
-- "Create a security dashboard with all cameras and door sensors"
-- "Make a climate control panel for all thermostats"
-- "Build an energy monitoring dashboard with power sensors"
-
-### Advanced Features
-
-#### Entity Autocompletion
-- Start typing entity names to get intelligent suggestions
-- Suggestions are context-aware based on your prompt
-- Shows entity states and locations
-
-#### Live Preview
-- See how your configuration will look with real entity data
-- Preview automations with current trigger states
-- Visualize dashboard layouts
-
-#### Configuration Validation
-- Built-in YAML syntax validation
-- Entity existence checking
-- AI-powered logic validation with suggestions
+### Conversation Features
+- **50 Conversation Limit**: Stores up to 50 conversations per user
+- **Auto-Save**: Conversations save automatically as you chat
+- **Search**: Quickly find past conversations
+- **Privacy**: Each user has their own private conversation history
 
 ## API Reference
 
-The integration provides several REST API endpoints for advanced usage:
+### WebSocket API
 
-### Generate Configuration
+The integration provides WebSocket endpoints for conversation management:
+
+#### Load Conversations
+```javascript
+await hass.connection.sendMessagePromise({
+  type: 'ai_config_assistant/load_conversations'
+});
+```
+
+#### Save Conversation
+```javascript
+await hass.connection.sendMessagePromise({
+  type: 'ai_config_assistant/save_conversation',
+  conversation: {...}
+});
+```
+
+#### Delete Conversation
+```javascript
+await hass.connection.sendMessagePromise({
+  type: 'ai_config_assistant/delete_conversation',
+  conversation_id: 'conv_123...'
+});
+```
+
+### REST API
+
+#### Generate Configuration
 ```
 POST /api/ai_config_assistant/generate
 {
   "prompt": "Turn on lights when motion detected",
   "type": "automation",
-  "context": {}
+  "entities": ["light.living_room", "binary_sensor.motion"]
 }
 ```
 
-### Validate Configuration
+#### Validate Configuration
 ```
 POST /api/ai_config_assistant/validate
 {
@@ -204,7 +252,7 @@ POST /api/ai_config_assistant/validate
 }
 ```
 
-### Get Entity Suggestions
+#### Get Entity Suggestions
 ```
 POST /api/ai_config_assistant/entity_suggestions
 {
@@ -214,37 +262,29 @@ POST /api/ai_config_assistant/entity_suggestions
 }
 ```
 
-## Configuration Examples
+### Service Calls
 
-### Automation Example
+#### Generate Configuration Service
 ```yaml
-alias: "Motion Light Control"
-trigger:
-  - platform: state
-    entity_id: binary_sensor.living_room_motion
-    to: "on"
-condition:
-  - condition: sun
-    after: sunset
-action:
-  - service: light.turn_on
-    target:
-      entity_id: light.living_room_main
+service: ai_config_assistant.generate_config
+data:
+  prompt: "Turn on lights at sunset"
+  type: automation
+  entities:
+    - light.living_room
+    - light.kitchen
 ```
 
-### Script Example
+#### Deploy Configuration Service
 ```yaml
-alias: "Good Night Routine"
-sequence:
-  - service: light.turn_off
-    target:
-      area_id: all
-  - service: lock.lock
-    target:
-      entity_id: lock.front_door
-  - service: alarm_control_panel.alarm_arm_home
-    target:
-      entity_id: alarm_control_panel.home_security
+service: ai_config_assistant.deploy_config
+data:
+  config: |
+    alias: "Evening Lights"
+    trigger:
+      - platform: sun
+        event: sunset
+  type: automation
 ```
 
 ## Troubleshooting
@@ -256,20 +296,25 @@ sequence:
 - Ensure all dependencies are installed
 - Verify the integration files are in the correct location
 
+**Conversations not syncing:**
+- Check WebSocket connection in browser console
+- Verify user is logged in (not using bypass login)
+- Clear browser cache and reload
+
 **API key errors:**
 - Verify your API key is correct and active
 - Check that your account has sufficient credits/quota
-- Ensure the selected model is available for your account
-
-**Generation not working:**
-- Check your internet connection
-- Verify the LLM service is operational
-- Try with different prompts or models
+- Ensure the selected model is available
 
 **Entities not found:**
-- Refresh the entity cache by restarting the integration
+- Refresh the page to reload entity cache
 - Check that entity IDs are correct
 - Ensure entities are not disabled
+
+**Template sensors not appearing:**
+- Add `!include template_sensors.yaml` to configuration.yaml
+- Restart Home Assistant after adding template sensors
+- Check logs for template errors
 
 ### Debug Logging
 
@@ -298,93 +343,31 @@ This project is licensed under the MIT License. See the LICENSE file for details
 
 ## 📝 Changelog
 
-### v1.4.0 (Latest) - Enhanced Error Handling & UI Feedback
-- ✅ Added user-friendly error messages for common LLM issues (quota, auth, network)
-- 💳 OpenAI quota exceeded errors now show direct billing link
-- 🔑 API key errors provide clear configuration instructions
-- 🌐 Network and timeout errors have helpful messages
-- 💬 Service layer now properly surfaces errors to chat UI
-- 👁️ Errors appear in chat instead of just logs
+### v1.5.0 (Latest) - Cross-Device Sync & Enhanced UI
+- ☁️ **Cross-Device Conversation Sync**: Chat history syncs across all your devices
+- 🏷️ **Auto-Labeling**: Automatically labels created entities with customizable tags
+- ⚡ **Slash Commands**: Quick configuration access with `/automation`, `/scene`, etc.
+- 📥 **Export to YAML**: Choose between database deployment or file export
+- 🎯 **Human-Readable IDs**: Descriptive IDs instead of timestamps
+- 🎨 **UI Overhaul**: Tabs moved to header, entity autocomplete everywhere
+- 💾 **Server Storage**: Conversations stored in Home Assistant, not browser
+- 🔄 **Auto-Migration**: Existing conversations automatically migrate to server
+- 🔐 **User Privacy**: Each user has their own private conversation history
 
-### v1.3.9 - Enhanced Service Debugging
-- 🔍 Added detailed service response logging for troubleshooting
+### v1.4.0 - Enhanced Error Handling
+- ✅ User-friendly error messages for common issues
+- 💳 OpenAI quota errors show billing links
+- 🔑 Clear API key configuration instructions
+- 🌐 Better network error handling
 
-### v1.3.8 - Full LLM Functionality Restored
-- ✅ Removed test response and restored actual AI configuration generation
-- 🆕 Added OpenRouter provider support with proper API configuration  
-- 🔇 Improved service logging to be less verbose while maintaining debugging
-- 🔧 Fixed service response detection works perfectly with HA 2025.7
-- 🛠️ Enhanced error handling and response formatting
-- 🤖 Service now properly calls AI models for real configuration responses
-
-### v1.3.7 - Critical Fix for HA 2025.7
-- 🚨 Fixed critical issue where return_response was always False
-- ✅ Now checks both call.return_response and call.data.get('return_response')
-- 🎯 Returns hardcoded success response for testing
-- 📊 Enhanced logging to show both response flags
-- 🔧 Service now properly detects when response is requested
-
-### v1.3.6 - Enhanced Service Debugging
-- 🔍 Changed all service debug logs to WARNING level for visibility
-- ⚠️ Added explicit check for return_response parameter
-- 📊 Enhanced test response with data_received field
-- 🛠️ Service now always returns data for debugging purposes
-- 💡 Better error messages to diagnose service call issues
-
-### v1.3.5 - Hotfix for SupportsResponse Compatibility
-- 🚨 Fixed AttributeError: SupportsResponse.REQUIRED doesn't exist in older HA versions
-- ✅ Reverted to SupportsResponse.OPTIONAL for compatibility
-- 🔧 Integration now loads properly without errors
-
-### v1.3.4 - Critical Service Response Fix
-- 🔧 Fixed service response issue by changing to SupportsResponse.REQUIRED
-- ✅ Service now properly returns configuration data instead of just context
-- 📊 Added comprehensive response logging for debugging
-- 🛠️ Fixed malformed services.yaml with proper entity field support
-- 🎯 Synced all fixes to packages directory
-
-### v1.3.3 - Enhanced Debugging
-- 🔍 Added comprehensive service call debugging and logging
-- 📊 Enhanced error logs now show full service responses
-- 🛠️ Better error classification and troubleshooting information
-- 💡 Console logging for real-time debugging of service issues
-- 🎯 Improved error context for faster issue resolution
-
-### v1.3.2 - Smart Entity Filtering
-- 🎯 Fixed "Unknown error" issue by implementing intelligent entity filtering
-- 🏠 Added location-based entity detection (e.g., "gym lights" finds gym-specific entities)
-- ⚡ Limited entity payload to 100 entities max to prevent service timeout
-- 📊 Enhanced error logs with detailed entity filtering information
-- 🔍 Added console debugging for troubleshooting entity selection
-
-### v1.3.1 - Enhanced Error Handling
-- 🔧 Fixed send button styling to be perfectly circular
-- 📋 Added progressive error disclosure with detailed debug logs
-- 🛠️ Enhanced error context for better troubleshooting
-- 🎨 Improved UI polish and visual feedback
-
-### v1.3.0 - Streamlined Chat Experience  
-- 🚫 Removed entity confirmation UI - fully automatic now
-- 🤖 Smart domain detection sends only relevant entities to LLM
-- 🚀 Working Deploy button for automations, scripts, and scenes
-- 💬 Added "reload" command and refinement capabilities
-
-### v1.2.1 - Service Response Fix
-- ✅ Fixed "Unknown error" issue with service response handling
-- 🔄 Added backward compatibility for older Home Assistant versions
-- 🔧 Improved entity ID extraction in chat flow
-
-### v1.2.0 - Conversational Interface
-- 💬 Revolutionary chat-first interface with message bubbles
-- 🎯 Automatic entity detection and confirmation cards
-- 🔄 Multi-turn conversation support with context management
-- 📱 Mobile-responsive design with smooth animations
+### Previous Versions
+See [GitHub Releases](https://github.com/toml0006/aight/releases) for full changelog.
 
 ## Support
 
-- **📖 Documentation**: Visit [toml0006.github.io/aight](https://toml0006.github.io/aight/) for full documentation and examples
-- **🐛 Issues**: Report bugs and request features on [GitHub Issues](https://github.com/toml0006/aight/issues)
-- **💬 Discussions**: Join the conversation in [GitHub Discussions](https://github.com/toml0006/aight/discussions)
+- **📖 Documentation**: Visit [toml0006.github.io/aight](https://toml0006.github.io/aight/) for full documentation
+- **🐛 Issues**: Report bugs on [GitHub Issues](https://github.com/toml0006/aight/issues)
+- **💬 Discussions**: Join [GitHub Discussions](https://github.com/toml0006/aight/discussions)
 - **🏡 Community**: Visit the [Home Assistant Community Forum](https://community.home-assistant.io/)
 
 ## Disclaimer

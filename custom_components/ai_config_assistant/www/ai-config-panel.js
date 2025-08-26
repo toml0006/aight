@@ -3,43 +3,56 @@ if (!customElements.get('ai-config-panel')) {
   customElements.define('ai-config-panel', class extends HTMLElement {
   constructor() {
     super();
+    // Debug logging - only enable in development
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      console.log('🚀 AI Config Panel v2.0 - ENHANCED AUTOCOMPLETE & SLASH COMMANDS LOADED!');
+    }
     this.attachShadow({ mode: 'open' });
     this._hass = null;
     this._currentTab = 'chat';
     this._entities = [];
     this._autocompleteTimeout = null;
-    this._slashCommands = [
-      { command: '/automation', name: 'Create Automation', icon: '⚡', description: 'Generate automation with triggers and actions' },
-      { command: '/scene', name: 'Create Scene', icon: '🎬', description: 'Define scene with device states' },
-      { command: '/script', name: 'Create Script', icon: '📜', description: 'Build reusable script sequence' },
-      { command: '/dashboard', name: 'Create Dashboard', icon: '📊', description: 'Design custom dashboard layout' },
-      { command: '/template', name: 'Template Sensor', icon: '🔧', description: 'Create template-based sensor' },
-      { command: '/helper', name: 'Create Helper', icon: '🎛️', description: 'Create input helper entity' },
-      { command: '/agent', name: 'Switch Agent', icon: '🤖', description: 'Change the AI assistant agent' },
-      { command: '/chat', name: 'Go to Chat', icon: '💬', description: 'Navigate to the Chat tab' },
-      { command: '/validate', name: 'Go to Validate', icon: '✅', description: 'Navigate to the Validate tab' },
-      { command: '/preview', name: 'Go to Preview', icon: '👁️', description: 'Navigate to the Preview tab' },
-      { command: '/settings', name: 'Go to Settings', icon: '⚙️', description: 'Navigate to the Settings tab' }
-    ];
-    
-    // Available AI agents
-    this._availableAgents = [
-      { id: 'home-assistant', name: 'Home Assistant AI', icon: '🤖', description: 'Specialized in Home Assistant automation' },
-      { id: 'general', name: 'General Assistant', icon: '🧠', description: 'General purpose AI assistant' },
-      { id: 'expert', name: 'YAML Expert', icon: '⚙️', description: 'Specialized in YAML configuration' }
-    ];
-    
-    // Current selected agent
-    this._currentAgent = this._availableAgents[0];
-    this._showingAutocomplete = false;
-    this._selectedAutocompleteIndex = -1;
     this._conversationMessages = [];
     this._conversationContext = {};
     this._isProcessing = false;
-    this._conversationHistory = [];  // Initialize as empty, will load async
+    this._selectedSuggestionIndex = -1;
+    this._conversations = [];
     this._currentConversationId = null;
-    this._conversationSidebarOpen = false;
-    this._conversationsLoaded = false;
+    
+    // Theme detection and management
+    this._isDarkMode = false;
+    this._detectTheme();
+    this._setupThemeListeners();
+  }
+  
+  _detectTheme() {
+    // Check Home Assistant theme
+    if (this._hass && this._hass.selectedTheme) {
+      this._isDarkMode = this._hass.selectedTheme.dark === true;
+    } else {
+      // Fallback to system preference
+      this._isDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+    this._applyTheme();
+  }
+  
+  _setupThemeListeners() {
+    // Listen for system theme changes
+    if (window.matchMedia) {
+      const darkModeQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      darkModeQuery.addEventListener('change', (e) => {
+        this._isDarkMode = e.matches;
+        this._applyTheme();
+      });
+    }
+  }
+  
+  _applyTheme() {
+    if (this._isDarkMode) {
+      this.setAttribute('dark', '');
+    } else {
+      this.removeAttribute('dark');
+    }
   }
 
   set hass(hass) {
@@ -51,150 +64,236 @@ if (!customElements.get('ai-config-panel')) {
       this._haVersion = hass.config.version;
     }
     
+    // Detect theme when hass is available
+    this._detectTheme();
+    
     if (!this._rendered) {
       this._render();
       this._rendered = true;
       this._loadEntities();
-      // Initialize agent display
-      this._updateAgentDisplay();
-      // Load conversations asynchronously after render
-      this._initializeConversations();
-    }
-  }
-
-  async _initializeConversations() {
-    if (this._conversationsLoaded) {
-      return;
-    }
-    
-    try {
-      this._conversationHistory = await this._loadConversationHistory();
-      this._conversationsLoaded = true;
-      this._renderConversationList();
-    } catch (error) {
-      console.error('Failed to initialize conversations:', error);
-      this._conversationHistory = [];
     }
   }
 
   _render() {
     this.shadowRoot.innerHTML = `
       <style>
+        /* Modern Design System - CSS Custom Properties */
+        :host {
+          /* Color Palette - Modern Blues & Grays */
+          --ai-primary: #2563eb;
+          --ai-primary-light: #3b82f6;
+          --ai-primary-dark: #1e40af;
+          --ai-primary-alpha-10: rgba(37, 99, 235, 0.1);
+          --ai-primary-alpha-20: rgba(37, 99, 235, 0.2);
+          
+          /* Secondary Colors */
+          --ai-secondary: #8b5cf6;
+          --ai-secondary-light: #a78bfa;
+          --ai-secondary-dark: #7c3aed;
+          
+          /* Semantic Colors */
+          --ai-success: #10b981;
+          --ai-success-light: #34d399;
+          --ai-success-dark: #059669;
+          --ai-success-alpha: rgba(16, 185, 129, 0.1);
+          
+          --ai-warning: #f59e0b;
+          --ai-warning-light: #fbbf24;
+          --ai-warning-dark: #d97706;
+          --ai-warning-alpha: rgba(245, 158, 11, 0.1);
+          
+          --ai-error: #ef4444;
+          --ai-error-light: #f87171;
+          --ai-error-dark: #dc2626;
+          --ai-error-alpha: rgba(239, 68, 68, 0.1);
+          
+          --ai-info: #06b6d4;
+          --ai-info-light: #22d3ee;
+          --ai-info-dark: #0891b2;
+          --ai-info-alpha: rgba(6, 182, 212, 0.1);
+          
+          /* Neutral Colors */
+          --ai-gray-50: #f9fafb;
+          --ai-gray-100: #f3f4f6;
+          --ai-gray-200: #e5e7eb;
+          --ai-gray-300: #d1d5db;
+          --ai-gray-400: #9ca3af;
+          --ai-gray-500: #6b7280;
+          --ai-gray-600: #4b5563;
+          --ai-gray-700: #374151;
+          --ai-gray-800: #1f2937;
+          --ai-gray-900: #111827;
+          
+          /* Typography Scale */
+          --ai-font-display: 2rem;     /* 32px */
+          --ai-font-title: 1.5rem;      /* 24px */
+          --ai-font-subtitle: 1.125rem; /* 18px */
+          --ai-font-body: 0.875rem;     /* 14px */
+          --ai-font-caption: 0.75rem;   /* 12px */
+          
+          /* Line Heights */
+          --ai-line-height-display: 2.5rem;  /* 40px */
+          --ai-line-height-title: 2rem;      /* 32px */
+          --ai-line-height-subtitle: 1.75rem;/* 28px */
+          --ai-line-height-body: 1.25rem;    /* 20px */
+          --ai-line-height-caption: 1rem;    /* 16px */
+          
+          /* Font Weights */
+          --ai-font-regular: 400;
+          --ai-font-medium: 500;
+          --ai-font-semibold: 600;
+          --ai-font-bold: 700;
+          
+          /* Spacing Scale (4px base) */
+          --ai-space-1: 0.25rem;  /* 4px */
+          --ai-space-2: 0.5rem;   /* 8px */
+          --ai-space-3: 0.75rem;  /* 12px */
+          --ai-space-4: 1rem;     /* 16px */
+          --ai-space-5: 1.25rem;  /* 20px */
+          --ai-space-6: 1.5rem;   /* 24px */
+          --ai-space-8: 2rem;     /* 32px */
+          --ai-space-12: 3rem;    /* 48px */
+          
+          /* Border Radius */
+          --ai-radius-sm: 0.25rem;  /* 4px */
+          --ai-radius-md: 0.5rem;   /* 8px */
+          --ai-radius-lg: 0.75rem;  /* 12px */
+          --ai-radius-xl: 1rem;     /* 16px */
+          --ai-radius-full: 9999px;
+          
+          /* Shadows - Modern, Subtle */
+          --ai-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+          --ai-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+          --ai-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+          --ai-shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+          
+          /* Animation Durations */
+          --ai-duration-fast: 150ms;
+          --ai-duration-normal: 250ms;
+          --ai-duration-slow: 400ms;
+          
+          /* Animation Easings */
+          --ai-ease-out: cubic-bezier(0, 0, 0.2, 1);
+          --ai-ease-in: cubic-bezier(0.4, 0, 1, 1);
+          --ai-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+          --ai-ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+          
+          /* Z-Index Scale */
+          --ai-z-dropdown: 1000;
+          --ai-z-modal: 2000;
+          --ai-z-tooltip: 3000;
+          --ai-z-notification: 4000;
+        }
+
+        /* Dark Mode Overrides */
+        :host([dark]) {
+          --ai-primary: #60a5fa;
+          --ai-primary-light: #93c5fd;
+          --ai-primary-dark: #3b82f6;
+          
+          --ai-gray-50: #111827;
+          --ai-gray-100: #1f2937;
+          --ai-gray-200: #374151;
+          --ai-gray-300: #4b5563;
+          --ai-gray-400: #6b7280;
+          --ai-gray-500: #9ca3af;
+          --ai-gray-600: #d1d5db;
+          --ai-gray-700: #e5e7eb;
+          --ai-gray-800: #f3f4f6;
+          --ai-gray-900: #f9fafb;
+        }
+        
+        /* Apply base styles with new design tokens */
         :host {
           display: block;
-          padding: 16px;
-          font-family: var(--paper-font-common-base_-_font-family);
-          background: var(--primary-background-color);
-          color: var(--primary-text-color);
+          padding: var(--ai-space-4);
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+          background: var(--primary-background-color, var(--ai-gray-50));
+          color: var(--primary-text-color, var(--ai-gray-900));
+          font-size: var(--ai-font-body);
+          line-height: var(--ai-line-height-body);
+          transition: all var(--ai-duration-normal) var(--ai-ease-in-out);
         }
 
         .container {
           max-width: 1200px;
           margin: 0 auto;
+          animation: fadeIn var(--ai-duration-slow) var(--ai-ease-out);
         }
 
         .header {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          margin-bottom: 24px;
-          padding-bottom: 16px;
-          border-bottom: 1px solid var(--divider-color);
-          flex-wrap: wrap;
-          gap: 16px;
-        }
-
-        .header-content {
-          display: flex;
-          align-items: center;
-          gap: 32px;
-          flex: 1;
-        }
-
-        .header-tabs {
-          display: flex;
-          gap: 8px;
-          flex-wrap: wrap;
-        }
-
-        /* Mobile responsive adjustments */
-        @media (max-width: 768px) {
-          .header {
-            flex-direction: column;
-            gap: 12px;
-            align-items: stretch;
-          }
-
-          .header-content {
-            flex-direction: column;
-            gap: 16px;
-            align-items: stretch;
-          }
-
-          .header-tabs {
-            justify-content: center;
-          }
-
-          .tab {
-            font-size: 12px;
-            padding: 6px 12px;
-          }
-
-          .autocomplete-dropdown {
-            max-height: 150px;
-            font-size: 14px;
-          }
-
-          .autocomplete-item {
-            padding: 10px 12px;
-          }
-
-          .entity-autocomplete-dropdown {
-            max-height: 150px;
-            font-size: 14px;
-          }
-
-          .entity-autocomplete-item {
-            padding: 10px 12px;
-          }
+          margin-bottom: var(--ai-space-6);
+          padding-bottom: var(--ai-space-4);
+          border-bottom: 1px solid var(--divider-color, var(--ai-gray-200));
+          animation: slideDown var(--ai-duration-normal) var(--ai-ease-out);
         }
 
         .header h1 {
           margin: 0;
-          font-size: 24px;
-          font-weight: 400;
+          font-size: var(--ai-font-title);
+          line-height: var(--ai-line-height-title);
+          font-weight: var(--ai-font-semibold);
+          background: linear-gradient(135deg, var(--ai-primary) 0%, var(--ai-secondary) 100%);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
         }
 
         .header .status {
-          font-size: 14px;
-          color: var(--secondary-text-color);
+          font-size: var(--ai-font-body);
+          color: var(--secondary-text-color, var(--ai-gray-500));
+          display: flex;
+          align-items: center;
+          gap: var(--ai-space-2);
         }
 
-        /* Removed separate tabs container - tabs are now in header */
+        .tabs {
+          display: flex;
+          gap: var(--ai-space-2);
+          margin-bottom: var(--ai-space-6);
+          border-bottom: 1px solid var(--divider-color, var(--ai-gray-200));
+          overflow-x: auto;
+          position: relative;
+        }
+        
+        .tabs::after {
+          content: '';
+          position: absolute;
+          bottom: -1px;
+          left: var(--tab-indicator-left, 0);
+          width: var(--tab-indicator-width, 0);
+          height: 2px;
+          background: var(--ai-primary);
+          transition: all var(--ai-duration-normal) var(--ai-ease-in-out);
+        }
 
         .tab {
-          padding: 8px 16px;
-          background: var(--card-background-color);
-          border: 1px solid var(--divider-color);
-          border-radius: 8px;
+          padding: var(--ai-space-3) var(--ai-space-6);
+          background: transparent;
+          border: none;
+          border-bottom: 2px solid transparent;
           cursor: pointer;
-          font-size: 13px;
-          font-weight: 500;
-          color: var(--secondary-text-color);
-          transition: all 0.2s ease;
-          white-space: nowrap;
+          font-size: var(--ai-font-body);
+          font-weight: var(--ai-font-medium);
+          color: var(--primary-text-color, var(--ai-gray-700));
+          text-transform: uppercase;
+          transition: all var(--ai-duration-normal) var(--ai-ease-in-out);
+          position: relative;
+          letter-spacing: 0.025em;
         }
 
         .tab:hover {
-          background: var(--primary-color);
-          color: var(--text-primary-color);
+          background: var(--ai-primary-alpha-10);
           transform: translateY(-1px);
         }
 
         .tab.active {
-          background: var(--primary-color);
-          color: var(--text-primary-color);
-          border-color: var(--primary-color);
+          color: var(--ai-primary);
+          border-bottom-color: transparent;
+          font-weight: var(--ai-font-semibold);
         }
 
         .content {
@@ -207,18 +306,40 @@ if (!customElements.get('ai-config-panel')) {
         }
 
         @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
+          from { 
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to { 
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        
+        @keyframes slideDown {
+          from {
+            opacity: 0;
+            transform: translateY(-20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
         }
 
         .card {
-          background: var(--card-background-color);
-          border-radius: 8px;
-          padding: 16px;
-          margin-bottom: 16px;
-          box-shadow: 0 2px 2px 0 rgba(0, 0, 0, 0.14),
-                      0 1px 5px 0 rgba(0, 0, 0, 0.12),
-                      0 3px 1px -2px rgba(0, 0, 0, 0.2);
+          background: var(--card-background-color, var(--ai-gray-50));
+          border-radius: var(--ai-radius-lg);
+          padding: var(--ai-space-4);
+          margin-bottom: var(--ai-space-4);
+          box-shadow: var(--ai-shadow-md);
+          border: 1px solid var(--ai-gray-200);
+          transition: all var(--ai-duration-normal) var(--ai-ease-in-out);
+        }
+        
+        .card:hover {
+          box-shadow: var(--ai-shadow-lg);
+          transform: translateY(-2px);
         }
 
         .input-group {
@@ -227,28 +348,35 @@ if (!customElements.get('ai-config-panel')) {
 
         label {
           display: block;
-          margin-bottom: 8px;
-          font-weight: 500;
-          font-size: 14px;
-          color: var(--secondary-text-color);
+          margin-bottom: var(--ai-space-2);
+          font-weight: var(--ai-font-medium);
+          font-size: var(--ai-font-body);
+          color: var(--secondary-text-color, var(--ai-gray-700));
+          transition: color var(--ai-duration-fast) var(--ai-ease-out);
+        }
+        
+        .input-group:focus-within label {
+          color: var(--ai-primary);
         }
 
         input, textarea, select {
           width: 100%;
-          padding: 12px;
-          background: var(--card-background-color);
-          border: 1px solid var(--divider-color);
-          border-radius: 4px;
-          color: var(--primary-text-color);
+          padding: var(--ai-space-3);
+          background: var(--card-background-color, white);
+          border: 2px solid var(--ai-gray-300);
+          border-radius: var(--ai-radius-md);
+          color: var(--primary-text-color, var(--ai-gray-900));
           font-family: inherit;
-          font-size: 16px;
+          font-size: var(--ai-font-body);
           box-sizing: border-box;
-          transition: border-color 0.3s;
+          transition: all var(--ai-duration-fast) var(--ai-ease-out);
+          outline: none;
         }
 
         input:focus, textarea:focus, select:focus {
-          outline: none;
-          border-color: var(--primary-color);
+          border-color: var(--ai-primary);
+          box-shadow: 0 0 0 3px var(--ai-primary-alpha-20);
+          transform: translateY(-1px);
         }
 
         textarea {
@@ -264,23 +392,46 @@ if (!customElements.get('ai-config-panel')) {
         }
 
         button {
-          padding: 12px 24px;
-          background: var(--primary-color);
+          padding: var(--ai-space-3) var(--ai-space-6);
+          background: linear-gradient(135deg, var(--ai-primary) 0%, var(--ai-primary-dark) 100%);
           color: white;
           border: none;
-          border-radius: 4px;
+          border-radius: var(--ai-radius-md);
           cursor: pointer;
           font-family: inherit;
-          font-size: 14px;
-          font-weight: 500;
+          font-size: var(--ai-font-body);
+          font-weight: var(--ai-font-medium);
           text-transform: uppercase;
-          transition: all 0.3s ease;
+          letter-spacing: 0.025em;
+          transition: all var(--ai-duration-fast) var(--ai-ease-out);
           min-width: 100px;
+          box-shadow: var(--ai-shadow-sm);
+          position: relative;
+          overflow: hidden;
+        }
+        
+        button::before {
+          content: '';
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          width: 0;
+          height: 0;
+          border-radius: 50%;
+          background: rgba(255, 255, 255, 0.3);
+          transform: translate(-50%, -50%);
+          transition: width var(--ai-duration-normal), height var(--ai-duration-normal);
+        }
+        
+        button:active::before {
+          width: 300px;
+          height: 300px;
         }
 
         button:hover {
-          background: var(--dark-primary-color);
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+          transform: translateY(-2px) scale(1.02);
+          box-shadow: var(--ai-shadow-md);
+          background: linear-gradient(135deg, var(--ai-primary-light) 0%, var(--ai-primary) 100%);
         }
 
         button:disabled {
@@ -290,12 +441,15 @@ if (!customElements.get('ai-config-panel')) {
 
         button.secondary {
           background: transparent;
-          color: var(--primary-color);
-          border: 1px solid var(--primary-color);
+          color: var(--ai-primary);
+          border: 2px solid var(--ai-primary);
+          box-shadow: none;
         }
 
         button.secondary:hover {
-          background: rgba(3, 169, 244, 0.1);
+          background: var(--ai-primary-alpha-10);
+          border-color: var(--ai-primary-light);
+          color: var(--ai-primary-dark);
         }
 
         .button-group {
@@ -331,19 +485,30 @@ if (!customElements.get('ai-config-panel')) {
         }
 
         .entity-suggestions {
-          position: absolute;
-          top: 100%;
-          left: 0;
-          right: 0;
-          background: var(--card-background-color);
-          border: 1px solid var(--divider-color);
-          border-radius: 4px;
-          max-height: 200px;
+          position: fixed;
+          background: var(--card-background-color, white);
+          border: 1px solid var(--ai-gray-200);
+          border-radius: var(--ai-radius-lg);
+          max-height: 300px;
           overflow-y: auto;
-          z-index: 1000;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+          z-index: var(--ai-z-dropdown);
+          box-shadow: var(--ai-shadow-xl);
           display: none;
-          margin-top: 4px;
+          margin-top: var(--ai-space-1);
+          min-width: 350px;
+          backdrop-filter: blur(10px);
+          animation: dropIn var(--ai-duration-fast) var(--ai-ease-out);
+        }
+        
+        @keyframes dropIn {
+          from {
+            opacity: 0;
+            transform: translateY(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
         }
 
         .entity-suggestions.show {
@@ -358,7 +523,16 @@ if (!customElements.get('ai-config-panel')) {
         }
 
         .entity-suggestion:hover {
-          background: var(--secondary-background-color);
+          background: var(--ai-primary-alpha-10);
+          transform: translateX(4px);
+        }
+        
+        .entity-suggestion.highlighted,
+        .command-suggestion.highlighted {
+          background: linear-gradient(135deg, var(--ai-primary) 0%, var(--ai-primary-dark) 100%);
+          color: white;
+          transform: translateX(4px);
+          box-shadow: var(--ai-shadow-sm);
         }
 
         .entity-suggestion:last-child {
@@ -384,6 +558,27 @@ if (!customElements.get('ai-config-panel')) {
           margin-top: 2px;
         }
 
+        .command-suggestion {
+          padding: 8px 12px;
+          cursor: pointer;
+          border-bottom: 1px solid var(--divider-color);
+          transition: background 0.2s;
+          background: var(--primary-background-color);
+        }
+
+        .command-suggestion:hover {
+          background: var(--secondary-background-color);
+        }
+
+        .command-suggestion:last-child {
+          border-bottom: none;
+        }
+
+        .command-suggestion .entity-name {
+          color: var(--primary-color);
+          font-weight: 600;
+        }
+
         .preview-section {
           margin-top: 16px;
           padding: 12px;
@@ -403,10 +598,14 @@ if (!customElements.get('ai-config-panel')) {
         }
 
         .message {
-          padding: 12px;
-          border-radius: 4px;
-          margin: 16px 0;
-          animation: slideIn 0.3s ease;
+          padding: var(--ai-space-3) var(--ai-space-4);
+          border-radius: var(--ai-radius-md);
+          margin: var(--ai-space-4) 0;
+          animation: slideIn var(--ai-duration-normal) var(--ai-ease-bounce);
+          display: flex;
+          align-items: center;
+          gap: var(--ai-space-2);
+          font-weight: var(--ai-font-medium);
         }
 
         @keyframes slideIn {
@@ -421,23 +620,27 @@ if (!customElements.get('ai-config-panel')) {
         }
 
         .message.success {
-          background: var(--success-color, #4caf50);
+          background: linear-gradient(135deg, var(--ai-success) 0%, var(--ai-success-dark) 100%);
           color: white;
+          box-shadow: var(--ai-shadow-md);
         }
 
         .message.error {
-          background: var(--error-color, #f44336);
+          background: linear-gradient(135deg, var(--ai-error) 0%, var(--ai-error-dark) 100%);
           color: white;
+          box-shadow: var(--ai-shadow-md);
         }
 
         .message.warning {
-          background: var(--warning-color, #ff9800);
+          background: linear-gradient(135deg, var(--ai-warning) 0%, var(--ai-warning-dark) 100%);
           color: white;
+          box-shadow: var(--ai-shadow-md);
         }
 
         .message.info {
-          background: var(--info-color, #2196f3);
+          background: linear-gradient(135deg, var(--ai-info) 0%, var(--ai-info-dark) 100%);
           color: white;
+          box-shadow: var(--ai-shadow-md);
         }
 
         .loading {
@@ -447,9 +650,9 @@ if (!customElements.get('ai-config-panel')) {
           border: 3px solid rgba(255, 255, 255, 0.3);
           border-radius: 50%;
           border-top-color: white;
-          animation: spin 1s ease-in-out infinite;
+          animation: spin 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
           vertical-align: middle;
-          margin-right: 8px;
+          margin-right: var(--ai-space-2);
         }
 
         @keyframes spin {
@@ -476,18 +679,20 @@ if (!customElements.get('ai-config-panel')) {
         }
 
         .example-chip {
-          padding: 6px 12px;
-          background: var(--primary-color);
+          padding: var(--ai-space-2) var(--ai-space-3);
+          background: linear-gradient(135deg, var(--ai-primary) 0%, var(--ai-secondary) 100%);
           color: white;
-          border-radius: 16px;
-          font-size: 12px;
+          border-radius: var(--ai-radius-full);
+          font-size: var(--ai-font-caption);
           cursor: pointer;
-          transition: all 0.2s;
+          transition: all var(--ai-duration-fast) var(--ai-ease-bounce);
+          font-weight: var(--ai-font-medium);
+          box-shadow: var(--ai-shadow-sm);
         }
 
         .example-chip:hover {
-          transform: scale(1.05);
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+          transform: scale(1.08) translateY(-2px);
+          box-shadow: var(--ai-shadow-md);
         }
 
         .detected-entity {
@@ -517,80 +722,55 @@ if (!customElements.get('ai-config-panel')) {
         }
 
         /* Conversational Interface Styles */
-        .chat-container {
+        .chat-layout {
           display: flex;
-          flex-direction: row;
           height: calc(100vh - 200px);
           max-height: 700px;
+          gap: 16px;
+        }
+
+        .conversation-sidebar {
+          width: 280px;
+          flex-shrink: 0;
           background: var(--card-background-color);
           border-radius: 8px;
-          overflow: hidden;
-        }
-
-        .chat-main {
           display: flex;
           flex-direction: column;
-          flex: 1;
-          min-width: 0;
-        }
-
-        .conversations-sidebar {
-          width: 300px;
-          background: var(--secondary-background-color);
-          border-left: 1px solid var(--divider-color);
-          display: flex;
-          flex-direction: column;
-          transition: width 0.3s ease, opacity 0.3s ease;
-        }
-
-        .conversations-sidebar.collapsed {
-          width: 0;
-          opacity: 0;
           overflow: hidden;
+          border: 1px solid var(--divider-color);
         }
 
-        .conversations-header {
+        .sidebar-header {
           display: flex;
           align-items: center;
           justify-content: space-between;
           padding: 12px 16px;
+          background: var(--primary-color);
+          color: white;
           border-bottom: 1px solid var(--divider-color);
-          background: var(--primary-background-color);
         }
 
-        .conversations-header h4 {
+        .sidebar-header h4 {
           margin: 0;
           font-size: 14px;
           font-weight: 500;
-          color: var(--primary-text-color);
         }
 
-        .conversations-toggle {
-          width: 40px;
-          height: 40px;
-          min-width: 40px;
-          background: var(--primary-color);
+        .new-conversation-btn {
+          background: rgba(255, 255, 255, 0.2);
           border: none;
-          border-radius: 50%;
+          border-radius: 4px;
           color: white;
+          padding: 6px;
           cursor: pointer;
           display: flex;
           align-items: center;
           justify-content: center;
-          transition: all 0.2s ease;
-          flex-shrink: 0;
+          transition: background 0.2s ease;
         }
 
-        .conversations-toggle:hover {
-          transform: scale(1.1);
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-        }
-
-        .conversations-toggle svg {
-          width: 20px;
-          height: 20px;
-          color: white;
-          stroke: white;
+        .new-conversation-btn:hover {
+          background: rgba(255, 255, 255, 0.3);
         }
 
         .conversations-list {
@@ -600,17 +780,23 @@ if (!customElements.get('ai-config-panel')) {
         }
 
         .conversation-item {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
           padding: 12px;
           margin-bottom: 4px;
+          background: transparent;
+          border: none;
           border-radius: 6px;
           cursor: pointer;
-          border: 1px solid transparent;
-          transition: all 0.2s ease;
+          text-align: left;
+          width: 100%;
+          transition: background 0.2s ease;
+          color: var(--primary-text-color);
         }
 
         .conversation-item:hover {
-          background: var(--primary-background-color);
-          border-color: var(--divider-color);
+          background: var(--divider-color);
         }
 
         .conversation-item.active {
@@ -618,81 +804,206 @@ if (!customElements.get('ai-config-panel')) {
           color: white;
         }
 
-        .conversation-item.active .conversation-preview {
-          color: rgba(255, 255, 255, 0.8);
+        .conversation-content {
+          flex: 1;
+          overflow: hidden;
         }
 
         .conversation-title {
-          font-size: 13px;
+          font-size: 14px;
           font-weight: 500;
           margin-bottom: 4px;
+          white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
-          white-space: nowrap;
         }
 
         .conversation-preview {
           font-size: 12px;
-          color: var(--secondary-text-color);
+          opacity: 0.7;
+          white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
-          white-space: nowrap;
-          margin-bottom: 4px;
         }
 
         .conversation-date {
           font-size: 11px;
-          color: var(--secondary-text-color);
+          opacity: 0.6;
+          white-space: nowrap;
         }
 
         .conversation-actions {
-          display: flex;
+          display: none;
+          align-items: center;
           gap: 4px;
-          opacity: 0;
-          transition: opacity 0.2s ease;
         }
 
         .conversation-item:hover .conversation-actions {
-          opacity: 1;
+          display: flex;
         }
 
-        .conversation-action-btn {
+        .conversation-delete-btn {
           background: none;
           border: none;
-          color: var(--secondary-text-color);
+          color: inherit;
+          padding: 4px;
+          border-radius: 4px;
           cursor: pointer;
-          padding: 2px;
-          border-radius: 3px;
-          font-size: 12px;
-          min-width: auto;
-          width: auto;
-          height: auto;
+          opacity: 0.6;
+          transition: opacity 0.2s ease;
         }
 
-        .conversation-action-btn:hover {
+        .conversation-delete-btn:hover {
+          opacity: 1;
+          background: rgba(255, 255, 255, 0.1);
+        }
+
+        .conversation-deployments {
+          margin-top: 8px;
+          padding-top: 8px;
+          border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .deployment-indicator {
+          display: inline-block;
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          margin-right: 4px;
+        }
+
+        .deployment-indicator.active {
+          background-color: #4caf50;
+        }
+
+        .deployment-indicator.disabled {
+          background-color: #ff9800;
+        }
+
+        .deployment-indicator.error {
+          background-color: #f44336;
+        }
+
+        .deployment-indicator.deleted {
+          background-color: #9e9e9e;
+        }
+
+        .deployment-count {
+          font-size: 10px;
+          background: rgba(255, 255, 255, 0.2);
+          border-radius: 10px;
+          padding: 2px 6px;
+          margin-left: 4px;
+        }
+
+        .deployment-panel {
+          margin-top: 16px;
+          padding: 12px;
+          background: var(--card-background-color);
+          border-radius: 6px;
+          border: 1px solid var(--divider-color);
+        }
+
+        .deployment-panel h5 {
+          margin: 0 0 8px 0;
+          font-size: 13px;
+          font-weight: 500;
+          color: var(--primary-text-color);
+        }
+
+        .deployment-item {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 8px 0;
+          border-bottom: 1px solid var(--divider-color);
+        }
+
+        .deployment-item:last-child {
+          border-bottom: none;
+        }
+
+        .deployment-info {
+          flex: 1;
+        }
+
+        .deployment-entity {
+          font-size: 12px;
+          font-weight: 500;
+          color: var(--primary-text-color);
+        }
+
+        .entity-link {
+          color: var(--primary-color);
+          text-decoration: none;
+          cursor: pointer;
+          transition: opacity 0.2s ease;
+        }
+
+        .entity-link:hover {
+          opacity: 0.8;
+          text-decoration: underline;
+        }
+
+        .deployment-status {
+          font-size: 11px;
+          color: var(--secondary-text-color);
+          margin-top: 2px;
+        }
+
+        .deployment-actions {
+          display: flex;
+          gap: 4px;
+        }
+
+        .deployment-action-btn {
+          background: none;
+          border: 1px solid var(--divider-color);
+          border-radius: 4px;
+          padding: 4px 8px;
+          font-size: 10px;
+          cursor: pointer;
+          color: var(--primary-text-color);
+          transition: all 0.2s ease;
+        }
+
+        .deployment-action-btn:hover {
           background: var(--divider-color);
         }
 
-        .conversations-footer {
-          padding: 12px 16px;
-          border-top: 1px solid var(--divider-color);
-          background: var(--primary-background-color);
+        .deployment-action-btn.edit {
+          color: var(--primary-color);
+          border-color: var(--primary-color);
         }
 
-        .new-conversation-btn {
-          width: 100%;
-          padding: 8px 12px;
-          background: var(--primary-color);
-          color: white;
-          border: none;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 13px;
-          font-weight: 500;
+        .deployment-action-btn.delete {
+          color: var(--error-color, #f44336);
+          border-color: var(--error-color, #f44336);
         }
 
-        .new-conversation-btn:hover {
-          background: var(--dark-primary-color);
+        .deployment-action-btn.version {
+          color: var(--info-color, #2196f3);
+          border-color: var(--info-color, #2196f3);
+        }
+
+        .conversation-item.archived {
+          opacity: 0.6;
+          background: rgba(255, 165, 0, 0.1);
+        }
+
+        .conversation-item.archived .conversation-title::after {
+          content: " (Archived)";
+          font-size: 10px;
+          color: var(--warning-color, #ff9800);
+        }
+
+        .chat-container {
+          display: flex;
+          flex-direction: column;
+          flex: 1;
+          background: var(--card-background-color);
+          border-radius: 8px;
+          overflow: hidden;
         }
 
         .chat-header {
@@ -708,32 +1019,6 @@ if (!customElements.get('ai-config-panel')) {
           margin: 0;
           font-size: 16px;
           font-weight: 500;
-        }
-
-        .chat-header-controls {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-        }
-
-        .chat-header .conversations-toggle {
-          color: rgba(255, 255, 255, 0.8);
-          background: none;
-        }
-
-        .chat-header .conversations-toggle:hover {
-          color: white;
-          background: rgba(255, 255, 255, 0.1);
-        }
-
-        .chat-header .conversations-toggle svg {
-          color: rgba(255, 255, 255, 0.8);
-          stroke: rgba(255, 255, 255, 0.8);
-        }
-
-        .chat-header .conversations-toggle:hover svg {
-          color: white;
-          stroke: white;
         }
 
         .chat-status {
@@ -866,241 +1151,38 @@ if (!customElements.get('ai-config-panel')) {
           padding: 16px;
           background: var(--card-background-color);
           border-top: 1px solid var(--divider-color);
-        }
-
-        .chat-footer {
-          padding: 12px 16px;
-          background: var(--card-background-color);
-          border-top: 1px solid var(--divider-color);
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-
-        .chat-footer .chat-status {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          font-size: 14px;
-          color: var(--secondary-text-color);
-        }
-
-        .chat-footer .chat-status-dot {
-          width: 8px;
-          height: 8px;
-          border-radius: 50%;
-          background: #4caf50;
-        }
-
-        .chat-footer .conversations-toggle {
-          background: none;
-          border: none;
-          color: var(--primary-text-color);
-          cursor: pointer;
-          padding: 8px;
-          border-radius: 8px;
-          font-size: 16px;
-          transition: background-color 0.2s ease;
-        }
-
-        .chat-footer .conversations-toggle:hover {
-          background: var(--secondary-background-color);
-        }
-
-        .chat-footer .conversations-toggle svg {
-          color: var(--primary-text-color);
-          stroke: var(--primary-text-color);
-        }
-
-        /* General SVG styling to ensure visibility */
-        button svg {
-          pointer-events: none;
-        }
-        
-        button svg path {
-          pointer-events: none;
+          overflow: visible;
+          position: relative;
         }
 
         .chat-input-wrapper {
           display: flex;
-          gap: 12px;
+          gap: 8px;
           align-items: flex-end;
         }
 
-        .agent-indicator {
-          display: flex;
-          align-items: center;
-          gap: 8px;
+        .test-prompt-btn {
           padding: 8px 12px;
-          margin-top: 8px;
-          background: var(--secondary-background-color);
-          border: 1px solid var(--divider-color);
-          border-radius: 12px;
-          cursor: pointer;
-          transition: all 0.2s ease;
-          font-size: 14px;
-          color: var(--primary-text-color);
-        }
-
-        .agent-indicator:hover {
-          background: var(--card-background-color);
-          border-color: var(--primary-color);
-        }
-
-        .agent-icon {
-          font-size: 16px;
-        }
-
-        .agent-selector-container {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          flex-wrap: wrap;
-        }
-
-        .change-agent-btn {
-          padding: 8px 16px;
-          background: var(--primary-color);
+          background: var(--warning-color, #ffa726);
           color: white;
           border: none;
-          border-radius: 8px;
-          cursor: pointer;
-          font-size: 14px;
-          transition: all 0.2s ease;
-        }
-
-        .change-agent-btn:hover {
-          background: var(--primary-color);
-          opacity: 0.8;
-        }
-
-        .label-picker-container {
-          position: relative;
-          width: 100%;
-        }
-        
-        .label-picker-button {
-          width: 100%;
-          padding: 12px 16px;
-          border: 1px solid var(--divider-color);
-          border-radius: 8px;
-          background: var(--card-background-color);
-          color: var(--primary-text-color);
-          font-size: 14px;
-          font-family: inherit;
-          text-align: left;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          transition: border-color 0.3s ease;
-        }
-        
-        .label-picker-button:hover {
-          border-color: var(--primary-color);
-        }
-        
-        .label-picker-button:focus {
-          outline: none;
-          border-color: var(--primary-color);
-          box-shadow: 0 0 0 2px rgba(var(--primary-color-rgb), 0.2);
-        }
-        
-        .selected-label {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-        
-        .label-icon {
-          width: 16px;
-          height: 16px;
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
+          border-radius: 4px;
           font-size: 12px;
-        }
-
-        .label-icon ha-icon {
-          --mdc-icon-size: 12px;
-          width: 12px;
-          height: 12px;
-          color: white;
-          flex-shrink: 0;
-        }
-        
-        .label-dropdown {
-          position: absolute;
-          top: 100%;
-          left: 0;
-          right: 0;
-          background: var(--card-background-color);
-          border: 1px solid var(--divider-color);
-          border-radius: 8px;
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-          z-index: 1000;
-          max-height: 200px;
-          overflow-y: auto;
-          display: none;
-        }
-        
-        .label-dropdown.open {
-          display: block;
-        }
-        
-        .label-option {
-          padding: 12px 16px;
           cursor: pointer;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          border-bottom: 1px solid var(--divider-color);
-          transition: background-color 0.2s ease;
-        }
-        
-        .label-option:last-child {
-          border-bottom: none;
-        }
-        
-        .label-option:hover {
-          background: var(--secondary-background-color);
-        }
-        
-        .label-option.selected {
-          background: rgba(var(--primary-color-rgb), 0.1);
-        }
-        
-        .create-label-option {
-          border-top: 1px solid var(--divider-color);
-          color: var(--primary-color);
-          font-weight: 500;
-        }
-        
-        .no-labels-message {
-          padding: 16px;
-          text-align: center;
-          color: var(--secondary-text-color);
-          font-style: italic;
+          white-space: nowrap;
+          transition: background 0.2s;
         }
 
-        .disclaimer-text {
-          margin-top: 8px;
-          font-size: 12px;
-          color: var(--secondary-text-color);
-          opacity: 0.8;
-        }
-
-
-        .autocomplete-container {
-          flex: 1;
+        .test-prompt-btn:hover {
+          background: var(--warning-color-dark, #fb8c00);
+          opacity: 0.9;
         }
 
         .chat-input {
-          width: 100%;
-          min-height: 44px;
+          flex: 1;
+          min-height: 40px;
           max-height: 120px;
-          padding: 12px 20px;
+          padding: 10px 16px;
           border: 1px solid var(--divider-color);
           border-radius: 24px;
           background: var(--secondary-background-color);
@@ -1113,160 +1195,6 @@ if (!customElements.get('ai-config-panel')) {
 
         .chat-input:focus {
           border-color: var(--primary-color);
-        }
-
-        /* Autocomplete Styles */
-        .autocomplete-container {
-          position: relative;
-        }
-
-        .autocomplete-dropdown {
-          position: absolute;
-          bottom: 100%;
-          left: 0;
-          right: 0;
-          background: var(--card-background-color);
-          border: 1px solid var(--divider-color);
-          border-radius: 12px;
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-          max-height: 200px;
-          overflow-y: auto;
-          z-index: 1000;
-          margin-bottom: 8px;
-          display: none;
-        }
-
-        .autocomplete-dropdown.show {
-          display: block;
-          animation: slideUpFade 0.2s ease;
-        }
-
-        @keyframes slideUpFade {
-          from {
-            opacity: 0;
-            transform: translateY(10px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-
-        .autocomplete-item {
-          padding: 12px 16px;
-          cursor: pointer;
-          border-bottom: 1px solid var(--divider-color);
-          transition: background-color 0.2s ease;
-          display: flex;
-          align-items: center;
-          gap: 12px;
-        }
-
-        .autocomplete-item:last-child {
-          border-bottom: none;
-        }
-
-        .autocomplete-item:hover,
-        .autocomplete-item.selected {
-          background: var(--primary-color);
-          color: var(--text-primary-color);
-        }
-
-        .autocomplete-item .icon {
-          font-size: 16px;
-          width: 20px;
-          text-align: center;
-        }
-
-        .autocomplete-item .details {
-          flex: 1;
-        }
-
-        .autocomplete-item .command {
-          font-weight: 500;
-          font-size: 14px;
-        }
-
-        .autocomplete-item .description {
-          font-size: 12px;
-          opacity: 0.7;
-          margin-top: 2px;
-        }
-
-        .autocomplete-item.selected .description {
-          opacity: 0.9;
-        }
-
-        /* Entity Autocomplete Styles */
-        .entity-autocomplete-container {
-          position: relative;
-        }
-
-        .entity-autocomplete-dropdown {
-          position: absolute;
-          top: 100%;
-          left: 0;
-          right: 0;
-          background: var(--card-background-color);
-          border: 1px solid var(--divider-color);
-          border-radius: 8px;
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-          max-height: 200px;
-          overflow-y: auto;
-          z-index: 9999;
-          margin-top: 4px;
-          display: none;
-        }
-
-        .entity-autocomplete-dropdown.show {
-          display: block;
-          animation: slideDownFade 0.2s ease;
-        }
-
-        @keyframes slideDownFade {
-          from {
-            opacity: 0;
-            transform: translateY(-10px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-
-        .entity-autocomplete-item {
-          padding: 8px 12px;
-          cursor: pointer;
-          border-bottom: 1px solid var(--divider-color);
-          transition: background-color 0.2s ease;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-
-        .entity-autocomplete-item:last-child {
-          border-bottom: none;
-        }
-
-        .entity-autocomplete-item:hover,
-        .entity-autocomplete-item.selected {
-          background: var(--primary-color);
-          color: var(--text-primary-color);
-        }
-
-        .entity-autocomplete-item .entity-id {
-          font-family: monospace;
-          font-size: 12px;
-          font-weight: 500;
-        }
-
-        .entity-autocomplete-item .friendly-name {
-          font-size: 13px;
-          opacity: 0.8;
-        }
-
-        .entity-autocomplete-item.selected .friendly-name {
-          opacity: 1;
         }
 
         .chat-send-btn {
@@ -1297,16 +1225,9 @@ if (!customElements.get('ai-config-panel')) {
           transform: none;
         }
 
-        .chat-send-btn:disabled svg {
-          color: rgba(255, 255, 255, 0.5);
-          stroke: rgba(255, 255, 255, 0.5);
-        }
-
         .chat-send-btn svg {
           width: 18px;
           height: 18px;
-          color: white;
-          stroke: white;
         }
 
         .chat-quick-actions {
@@ -1440,27 +1361,6 @@ if (!customElements.get('ai-config-panel')) {
           border-color: var(--primary-color);
         }
 
-        .deploy-options {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-
-        .deploy-target {
-          padding: 8px 12px;
-          border-radius: 4px;
-          border: 1px solid var(--divider-color);
-          background: var(--card-background-color);
-          cursor: pointer;
-          font-size: 13px;
-          font-family: inherit;
-        }
-
-        .deploy-target:focus {
-          outline: 2px solid var(--primary-color);
-          outline-offset: 2px;
-        }
-
         .error-logs-container {
           margin-top: 8px;
           background: var(--secondary-background-color);
@@ -1542,26 +1442,20 @@ if (!customElements.get('ai-config-panel')) {
         }
 
         @media (max-width: 768px) {
-          .chat-container {
-            height: calc(100vh - 150px);
+          .chat-layout {
             flex-direction: column;
+            height: calc(100vh - 150px);
           }
-          
-          .conversations-sidebar {
+
+          .conversation-sidebar {
             width: 100%;
-            height: 300px;
-            border-left: none;
-            border-top: 1px solid var(--divider-color);
+            height: 200px;
             order: 2;
           }
-          
-          .conversations-sidebar.collapsed {
-            height: 0;
-            min-height: 0;
-          }
-          
-          .chat-main {
+
+          .chat-container {
             order: 1;
+            height: calc(100% - 216px);
           }
           
           .message-bubble {
@@ -1622,159 +1516,149 @@ if (!customElements.get('ai-config-panel')) {
           border-radius: 3px;
           font-weight: 500;
         }
-        
-        .action-buttons {
-          display: flex;
-          gap: 10px;
-          margin-top: 10px;
-        }
-        
-        .execute-script-btn,
-        .save-script-btn {
-          padding: 8px 16px;
-          border: none;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 14px;
-          font-weight: 500;
-          transition: all 0.2s;
-        }
-        
-        .execute-script-btn.primary {
-          background: var(--primary-color);
-          color: white;
-        }
-        
-        .execute-script-btn.primary:hover {
-          opacity: 0.9;
-        }
-        
-        .save-script-btn {
-          background: var(--card-background-color);
-          color: var(--primary-text-color);
-          border: 1px solid var(--divider-color);
-        }
-        
-        .save-script-btn:hover {
-          background: var(--secondary-background-color);
-        }
       </style>
 
       <div class="container">
         <div class="header">
-          <div class="header-content">
-            <h1>🤖 AIGHT</h1>
-            <div class="header-tabs">
-              <button class="tab active" data-tab="chat">Chat</button>
-              <button class="tab" data-tab="validate">Validate</button>
-              <button class="tab" data-tab="preview">Preview</button>
-              <button class="tab" data-tab="debug">LLM Debug</button>
-              <button class="tab" data-tab="help">Help</button>
-              <button class="tab" data-tab="settings">Settings</button>
-            </div>
-          </div>
+          <h1>Aight</h1>
           <div style="display: flex; align-items: center; gap: 16px;">
             <div class="status" id="entity-count"></div>
             <button id="reload-btn" class="secondary" style="min-width: auto; padding: 8px 16px;">🔄 Reload</button>
           </div>
         </div>
 
+        <div class="tabs">
+          <button class="tab active" data-tab="chat">Chat</button>
+          <button class="tab" data-tab="generate">Form</button>
+          <button class="tab" data-tab="validate">Validate</button>
+          <button class="tab" data-tab="preview">Preview</button>
+          <button class="tab" data-tab="debug">LLM Debug</button>
+          <button class="tab" data-tab="help">Help</button>
+        </div>
+
         <div class="content active" id="chat">
-          <div class="chat-container">
-            <div class="chat-main">
-              <div class="chat-messages" id="chat-messages">
-                <!-- Messages will be added here dynamically -->
-              </div>
-              <div class="chat-input-container">
-                <div class="chat-input-wrapper">
-                  <div class="autocomplete-container">
-                    <div class="autocomplete-dropdown" id="autocomplete-dropdown"></div>
-                    <textarea 
-                      class="chat-input" 
-                      id="chat-input"
-                      placeholder="Describe what you want to configure or type / for commands..."
-                      rows="1"
-                    ></textarea>
-                  </div>
-                  <button class="chat-send-btn" id="chat-send-btn" title="Send message">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="m22 2-7 20-4-9-9-4Z"/>
-                      <path d="M22 2 11 13"/>
-                    </svg>
-                  </button>
-                  <button class="conversations-toggle" id="conversations-toggle" title="Toggle conversation history">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                    </svg>
-                  </button>
-                </div>
-                <div class="disclaimer-text">
-                  AI can make mistakes. Please verify important information.
-                </div>
-              </div>
-            </div>
-            <div class="conversations-sidebar collapsed" id="conversations-sidebar">
-              <div class="conversations-header">
-                <h4>Conversations</h4>
-                <button class="conversations-toggle" id="conversations-close" title="Close sidebar">
-                  ✕
+          <div class="chat-layout">
+            <div class="conversation-sidebar">
+              <div class="sidebar-header">
+                <h4>💬 Conversations</h4>
+                <button class="new-conversation-btn" id="new-conversation-btn" title="Start new conversation">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
                 </button>
               </div>
               <div class="conversations-list" id="conversations-list">
-                <!-- Conversation history will be loaded here -->
+                <!-- Conversations will be loaded here -->
               </div>
-              <div class="conversations-footer">
-                <button class="new-conversation-btn" id="new-conversation-btn">
-                  + New Conversation
-                </button>
+            </div>
+            <div class="chat-container">
+              <div class="chat-header">
+                <h3>🤖 AI Configuration Assistant</h3>
+                <div class="chat-status">
+                  <span class="chat-status-dot"></span>
+                  <span>Ready</span>
+                </div>
+              </div>
+              <div class="chat-messages" id="chat-messages">
+                <!-- Messages will be added here dynamically -->
+              </div>
+              <div class="deployment-panel" id="deployment-panel" style="display: none;">
+                <!-- Deployment information will be shown here -->
+              </div>
+              <div class="chat-input-container">
+                <div class="chat-input-wrapper">
+                  <div class="entity-autocomplete" style="position: relative; width: 100%;">
+                    <textarea 
+                      class="chat-input" 
+                      id="chat-input"
+                      placeholder="Describe what you want to configure..."
+                      rows="1"
+                    ></textarea>
+                    <div class="entity-suggestions" id="chat-entity-suggestions"></div>
+                  </div>
+                  <button class="test-prompt-btn" id="test-prompt-btn" title="Test with: Turn on the kitchen lights in 4 minutes">
+                    🧪 Test
+                  </button>
+                  <button class="chat-send-btn" id="chat-send-btn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <line x1="22" y1="2" x2="11" y2="13"></line>
+                      <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                    </svg>
+                  </button>
+                </div>
+                <div class="chat-quick-actions">
+                  <div class="quick-action-chip" data-action="automation">Create Automation</div>
+                  <div class="quick-action-chip" data-action="scene">Create Scene</div>
+                  <div class="quick-action-chip" data-action="script">Create Script</div>
+                  <div class="quick-action-chip" data-action="dashboard">Create Dashboard</div>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        <div class="content" id="settings">
+        <div class="content" id="generate">
           <div class="card">
-            <h3>Settings</h3>
-            
             <div class="input-group">
-              <label>AI Assistant Agent</label>
-              <div class="agent-selector-container">
-                <div class="agent-indicator" id="agent-indicator-settings" title="Current AI agent">
-                  <span class="agent-icon">🤖</span>
-                  <span class="agent-name" id="agent-name-settings">Home Assistant AI</span>
-                </div>
-                <button class="change-agent-btn" id="change-agent-btn" title="Change AI agent">
-                  Change Agent
-                </button>
+              <label>Configuration Type</label>
+              <select id="config-type">
+                <option value="automation">Automation</option>
+                <option value="script">Script</option>
+                <option value="scene">Scene</option>
+                <option value="dashboard">Dashboard</option>
+                <option value="template">Template Sensor</option>
+              </select>
+              <div class="help-text">Select the type of configuration you want to generate</div>
+            </div>
+
+            <div class="input-group entity-autocomplete">
+              <label>Describe what you want to create</label>
+              <textarea id="prompt" placeholder="Example: Turn on living room lights when motion is detected after sunset"></textarea>
+              <div class="entity-suggestions" id="entity-suggestions"></div>
+              <div class="help-text">Use natural language to describe your automation. Entity names will autocomplete as you type.</div>
+              
+              <div class="example-prompts">
+                <div class="example-chip" data-prompt="Turn on lights when I arrive home">Arrival automation</div>
+                <div class="example-chip" data-prompt="Send notification when washing machine is done">Appliance monitor</div>
+                <div class="example-chip" data-prompt="Dim lights for movie time">Scene creator</div>
+                <div class="example-chip" data-prompt="Turn off everything when leaving">Away mode</div>
               </div>
             </div>
 
-            <div class="input-group">
-              <label>Auto-label Configuration</label>
-              <div class="label-picker-container">
-                <button type="button" class="label-picker-button" id="label-picker-button">
-                  <div class="selected-label">
-                    <span class="label-icon" id="selected-label-icon" style="background-color: #888;">🏷️</span>
-                    <span id="selected-label-name">No label selected</span>
-                  </div>
-                  <span>▼</span>
-                </button>
-                <div class="label-dropdown" id="label-dropdown">
-                  <div class="no-labels-message" id="no-labels-message">
-                    Loading labels...
-                  </div>
-                </div>
-              </div>
-              <small>Select a label to automatically apply to generated configurations</small>
+            <div class="button-group">
+              <button id="generate-btn">Generate Configuration</button>
+              <button id="clear-btn" class="secondary">Clear</button>
             </div>
+          </div>
 
-            <div class="input-group">
-              <button class="primary" id="save-settings-btn">Save Settings</button>
+          <div class="output-section" id="entity-detection" style="display: none;">
+            <div class="card">
+              <h3>🔍 Detected Entities</h3>
+              <p>I found these entities based on your description. Please confirm or modify them:</p>
+              <div id="detected-entities-list"></div>
+              <div class="button-group">
+                <button id="confirm-entities-btn">✓ Confirm & Generate</button>
+                <button id="skip-detection-btn" class="secondary">Skip Detection</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="output-section" id="generate-output" style="display: none;">
+            <div class="card">
+              <h3>Generated Configuration</h3>
+              <div id="explanation"></div>
+              <div class="output-code">
+                <pre id="generated-config"></pre>
+              </div>
+              <div class="button-group">
+                <button id="copy-btn">Copy to Clipboard</button>
+                <button id="validate-generated-btn" class="secondary">Validate</button>
+                <button id="preview-generated-btn" class="secondary">Preview</button>
+              </div>
             </div>
           </div>
         </div>
-
-        <!-- Form tab removed - replaced with slash commands in chat -->
 
         <div class="content" id="validate">
           <div class="card">
@@ -1791,11 +1675,8 @@ if (!customElements.get('ai-config-panel')) {
 
             <div class="input-group">
               <label>Configuration YAML</label>
-              <div class="entity-autocomplete-container">
-                <div class="entity-autocomplete-dropdown" id="validate-entity-dropdown"></div>
-                <textarea id="config-yaml" class="code-editor" placeholder="Paste your YAML configuration here..."></textarea>
-              </div>
-              <div class="help-text">Paste your YAML configuration to validate its syntax. Entity IDs will autocomplete as you type.</div>
+              <textarea id="config-yaml" class="code-editor" placeholder="Paste your YAML configuration here..."></textarea>
+              <div class="help-text">Paste your YAML configuration to validate its syntax</div>
             </div>
 
             <div class="button-group">
@@ -1821,11 +1702,8 @@ if (!customElements.get('ai-config-panel')) {
 
             <div class="input-group">
               <label>Configuration YAML</label>
-              <div class="entity-autocomplete-container">
-                <div class="entity-autocomplete-dropdown" id="preview-entity-dropdown"></div>
-                <textarea id="preview-yaml" class="code-editor" placeholder="Paste your YAML configuration here..."></textarea>
-              </div>
-              <div class="help-text">Preview how your configuration will work with current entity states. Entity IDs will autocomplete as you type.</div>
+              <textarea id="preview-yaml" class="code-editor" placeholder="Paste your YAML configuration here..."></textarea>
+              <div class="help-text">Preview how your configuration will work with current entity states</div>
             </div>
 
             <div class="button-group">
@@ -1961,7 +1839,20 @@ if (!customElements.get('ai-config-panel')) {
       });
     });
 
-    // Generate button and clear button removed - Form tab functionality replaced with slash commands
+    // Generate button
+    const generateBtn = root.getElementById('generate-btn');
+    if (generateBtn) {
+      generateBtn.addEventListener('click', () => this._generateConfig());
+    }
+
+    // Clear button
+    const clearBtn = root.getElementById('clear-btn');
+    if (clearBtn) {
+      clearBtn.addEventListener('click', () => {
+        root.getElementById('prompt').value = '';
+        root.getElementById('generate-output').style.display = 'none';
+      });
+    }
 
     // Copy button
     const copyBtn = root.getElementById('copy-btn');
@@ -1988,11 +1879,16 @@ if (!customElements.get('ai-config-panel')) {
 
     // Entity autocomplete with debouncing
     const promptField = root.getElementById('prompt');
+    console.log('🎯 Prompt field found:', !!promptField, promptField?.tagName, promptField?.id);
+    console.log('🔍 All prompt elements:', root.querySelectorAll('[id*="prompt"], [name*="prompt"], textarea, input[type="text"]'));
     if (promptField) {
+      console.log('🔗 Adding event listener to prompt field');
       promptField.addEventListener('input', (e) => {
+        const value = e.target.value;
+        console.log('📝 Input event fired:', value);
         clearTimeout(this._autocompleteTimeout);
         this._autocompleteTimeout = setTimeout(() => {
-          this._handleEntityAutocomplete(e.target.value);
+          this._handleEntityAutocomplete(value);
         }, 150);
       });
       
@@ -2002,6 +1898,11 @@ if (!customElements.get('ai-config-panel')) {
           const suggestionsDiv = root.getElementById('entity-suggestions');
           suggestionsDiv.classList.remove('show');
         }, 200); // Small delay to allow click on suggestion
+      });
+      
+      // Keyboard navigation
+      promptField.addEventListener('keydown', (e) => {
+        this._handleKeyboardNavigation(e, 'entity-suggestions');
       });
     }
 
@@ -2042,50 +1943,73 @@ if (!customElements.get('ai-config-panel')) {
       skipDetectionBtn.addEventListener('click', () => this._skipEntityDetection());
     }
 
-    // Chat interface event listeners with slash command support
+    // Chat interface event listeners
     const chatInput = root.getElementById('chat-input');
+    console.log('🎯 Chat input field found:', !!chatInput, chatInput?.tagName, chatInput?.id);
+    
+    // Add autocomplete to chat input as well
+    if (chatInput) {
+      console.log('🔗 Adding event listener to chat input field');
+      chatInput.addEventListener('input', (e) => {
+        const value = e.target.value;
+        console.log('📝 Chat input event fired:', value);
+        clearTimeout(this._chatAutocompleteTimeout);
+        this._chatAutocompleteTimeout = setTimeout(() => {
+          this._handleEntityAutocomplete(value);
+        }, 150);
+      });
+      
+      // Hide suggestions when clicking outside  
+      chatInput.addEventListener('blur', () => {
+        setTimeout(() => {
+          const suggestionsDiv = root.getElementById('chat-entity-suggestions');
+          if (suggestionsDiv) suggestionsDiv.classList.remove('show');
+        }, 200);
+      });
+      
+      // Keyboard navigation
+      chatInput.addEventListener('keydown', (e) => {
+        this._handleKeyboardNavigation(e, 'chat-entity-suggestions');
+      });
+    }
     const chatSendBtn = root.getElementById('chat-send-btn');
-    const agentIndicator = root.getElementById('agent-indicator');
-    const autocompleteDropdown = root.getElementById('autocomplete-dropdown');
+    const testPromptBtn = root.getElementById('test-prompt-btn');
+    const newConversationBtn = root.getElementById('new-conversation-btn');
     
     if (chatInput && chatSendBtn) {
       // Send message on button click
       chatSendBtn.addEventListener('click', () => this._sendChatMessage());
       
-      // Agent selector click handler
-      if (agentIndicator) {
-        agentIndicator.addEventListener('click', () => {
-          this._showAgentSelector();
+      // Test prompt button
+      if (testPromptBtn) {
+        testPromptBtn.addEventListener('click', () => {
+          chatInput.value = 'Turn on the kitchen lights in 4 minutes';
+          this._sendChatMessage();
         });
       }
       
-      // Enhanced keydown handler with slash command support
+      // Send message on Enter (without Shift)
       chatInput.addEventListener('keydown', (e) => {
-        if (this._showingAutocomplete) {
-          this._handleAutocompleteKeydown(e);
-        } else if (e.key === 'Enter' && !e.shiftKey) {
+        if (e.key === 'Enter' && !e.shiftKey) {
           e.preventDefault();
           this._sendChatMessage();
         }
       });
       
-      // Enhanced input handler with slash command detection
-      chatInput.addEventListener('input', (e) => {
-        // Auto-resize textarea
+      // Auto-resize textarea
+      chatInput.addEventListener('input', () => {
         chatInput.style.height = 'auto';
         chatInput.style.height = Math.min(chatInput.scrollHeight, 120) + 'px';
-        
-        // Handle slash command autocomplete
-        this._handleSlashCommandInput(e.target.value);
-      });
-      
-      // Hide autocomplete when clicking outside
-      document.addEventListener('click', (e) => {
-        if (!e.target.closest('.autocomplete-container')) {
-          this._hideAutocomplete();
-        }
       });
     }
+
+    // Conversation management event listeners
+    if (newConversationBtn) {
+      newConversationBtn.addEventListener('click', () => this._startNewConversation());
+    }
+
+    // Initialize conversation management
+    this._initializeConversationManager();
     
     // Quick action chips
     root.querySelectorAll('.quick-action-chip').forEach(chip => {
@@ -2094,31 +2018,6 @@ if (!customElements.get('ai-config-panel')) {
         this._handleQuickAction(action);
       });
     });
-
-    // Entity autocomplete for Validate and Preview tabs
-    this._setupEntityAutocomplete();
-    
-    // Settings tab event listeners
-    const changeAgentBtn = root.getElementById('change-agent-btn');
-    if (changeAgentBtn) {
-      changeAgentBtn.addEventListener('click', () => {
-        this._showAgentSelector();
-      });
-    }
-    
-    const saveSettingsBtn = root.getElementById('save-settings-btn');
-    if (saveSettingsBtn) {
-      saveSettingsBtn.addEventListener('click', () => {
-        this._saveSettings();
-      });
-    }
-    
-    // Initialize label picker properties
-    this._selectedLabelId = null;
-    this._availableLabels = [];
-    
-    // Load saved settings
-    this._loadSettings();
   }
 
   _confirmDetectedEntities() {
@@ -2399,9 +2298,119 @@ Instructions:
     }
   }
 
+  _handleKeyboardNavigation(e, suggestionsDivId) {
+    const root = this.shadowRoot;
+    const suggestionsDiv = root.getElementById(suggestionsDivId);
+    
+    if (!suggestionsDiv || !suggestionsDiv.classList.contains('show')) {
+      return;
+    }
+    
+    // Always prevent default for navigation keys when autocomplete is visible
+    if (['ArrowDown', 'ArrowUp', 'Enter', 'Escape'].includes(e.key)) {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+    }
+    
+    const suggestions = suggestionsDiv.querySelectorAll('.entity-suggestion, .command-suggestion');
+    
+    switch(e.key) {
+      case 'ArrowDown':
+        this._selectedSuggestionIndex = Math.min(this._selectedSuggestionIndex + 1, suggestions.length - 1);
+        this._updateSelection(suggestions);
+        break;
+        
+      case 'ArrowUp':
+        this._selectedSuggestionIndex = Math.max(this._selectedSuggestionIndex - 1, -1);
+        this._updateSelection(suggestions);
+        break;
+        
+      case 'Enter':
+        if (this._selectedSuggestionIndex >= 0 && suggestions[this._selectedSuggestionIndex]) {
+          // Get the selected suggestion
+          const selectedSuggestion = suggestions[this._selectedSuggestionIndex];
+          const value = selectedSuggestion.dataset.entity;
+          const isCommand = selectedSuggestion.classList.contains('command-suggestion');
+          
+          // Find the active input field
+          const activeInput = this._getActiveInput();
+          if (activeInput && value) {
+            if (isCommand) {
+              this._handleSlashCommand(value, activeInput);
+            } else {
+              // Insert entity into text
+              this._insertEntityIntoInput(activeInput, value);
+            }
+            // Close dropdown
+            suggestionsDiv.classList.remove('show');
+            this._selectedSuggestionIndex = -1;
+          }
+        }
+        break;
+        
+      case 'Escape':
+        suggestionsDiv.classList.remove('show');
+        this._selectedSuggestionIndex = -1;
+        break;
+    }
+  }
+  
+  _updateSelection(suggestions) {
+    suggestions.forEach((suggestion, index) => {
+      if (index === this._selectedSuggestionIndex) {
+        suggestion.classList.add('highlighted');
+        suggestion.scrollIntoView({ block: 'nearest' });
+      } else {
+        suggestion.classList.remove('highlighted');
+      }
+    });
+  }
+  
+  _getActiveInput() {
+    const root = this.shadowRoot;
+    const chatInput = root.getElementById('chat-input');
+    const promptInput = root.getElementById('prompt');
+    
+    // Return the input that has focus or is visible
+    if (chatInput && (document.activeElement === chatInput || chatInput.matches(':focus'))) {
+      return chatInput;
+    }
+    if (promptInput && (document.activeElement === promptInput || promptInput.matches(':focus'))) {
+      return promptInput;
+    }
+    
+    // Fallback: return the visible one
+    return chatInput && chatInput.offsetParent !== null ? chatInput : promptInput;
+  }
+  
+  _insertEntityIntoInput(input, entityId) {
+    const currentText = input.value;
+    const words = currentText.split(/\s+/);
+    
+    // Replace the last word (partial entity text) with the full entity ID
+    words[words.length - 1] = entityId;
+    input.value = words.join(' ') + ' ';
+    
+    // Trigger input event so autocomplete updates
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    
+    // Focus back to input
+    input.focus();
+  }
+
   _handleEntityAutocomplete(text) {
     const root = this.shadowRoot;
-    const suggestionsDiv = root.getElementById('entity-suggestions');
+    // Try both suggestion divs - config tab and chat tab
+    let suggestionsDiv = root.getElementById('entity-suggestions');
+    console.log('🔍 Config suggestions div:', !!suggestionsDiv, suggestionsDiv?.offsetParent);
+    if (!suggestionsDiv || suggestionsDiv.offsetParent === null) {
+      // Config tab div not visible, try chat tab
+      suggestionsDiv = root.getElementById('chat-entity-suggestions');
+      console.log('🔍 Chat suggestions div:', !!suggestionsDiv, suggestionsDiv?.offsetParent);
+    }
+    
+    console.log('🔍 Autocomplete called with:', text, 'suggestionsDiv found:', !!suggestionsDiv, 'id:', suggestionsDiv?.id);
 
     // Handle edge cases where text might be undefined or null
     if (!text || typeof text !== 'string') {
@@ -2413,15 +2422,83 @@ Instructions:
     const words = text.split(/\s+/);
     const lastWord = words[words.length - 1] || '';
     
+    let suggestions = [];
+    
+    // Check if typing slash command
+    if (lastWord.startsWith('/')) {
+      console.log('🎯 Slash command detected:', lastWord);
+      const commands = [
+        { cmd: '/automation', desc: 'Generate automation' },
+        { cmd: '/script', desc: 'Generate script' },
+        { cmd: '/sensor', desc: 'Generate template sensor' },
+        { cmd: '/dashboard', desc: 'Generate dashboard card' },
+        { cmd: '/scene', desc: 'Generate scene' },
+        { cmd: '/helper', desc: 'Generate input helper' },
+        { cmd: '/clear', desc: 'Clear conversation' },
+        { cmd: '/entities', desc: 'Show all entities' },
+      ];
+      
+      const query = lastWord.toLowerCase();
+      suggestions = commands
+        .filter(cmd => cmd.cmd.startsWith(query))
+        .map(cmd => ({
+          entity_id: cmd.cmd,
+          friendly_name: cmd.desc,
+          domain: 'command',
+          state: ''
+        }));
+      
+      console.log('🎯 Found slash suggestions:', suggestions.length);
+      this._showSuggestions(suggestions, suggestionsDiv, root, true);
+      return;
+    }
+    // Check for partial domain typing (e.g., "ligh" → suggest light entities)
+    else if (lastWord.length >= 3 && !lastWord.includes('.') && this._entities.length > 0) {
+      console.log('🔤 Partial domain typing detected:', lastWord);
+      const query = lastWord.toLowerCase();
+      const domains = ['light', 'switch', 'sensor', 'binary_sensor', 'climate', 'cover', 
+                      'fan', 'lock', 'media_player', 'camera', 'vacuum'];
+      
+      // Find matching domains
+      const matchingDomains = domains.filter(domain => domain.startsWith(query));
+      
+      if (matchingDomains.length > 0) {
+        // Show entities from matching domains
+        suggestions = this._entities
+          .filter(entity => matchingDomains.includes(entity.entity_id.split('.')[0]))
+          .slice(0, 15)
+          .sort((a, b) => {
+            // Sort by domain match quality and then alphabetically
+            const aDomain = a.entity_id.split('.')[0];
+            const bDomain = b.entity_id.split('.')[0];
+            const aExact = aDomain === query;
+            const bExact = bDomain === query;
+            
+            if (aExact && !bExact) return -1;
+            if (!aExact && bExact) return 1;
+            
+            const aStarts = aDomain.startsWith(query);
+            const bStarts = bDomain.startsWith(query);
+            
+            if (aStarts && !bStarts) return -1;
+            if (!aStarts && bStarts) return 1;
+            
+            return a.entity_id.localeCompare(b.entity_id);
+          });
+          
+        this._showSuggestions(suggestions, suggestionsDiv, root, false);
+        return;
+      }
+    }
     // Check if the last word looks like an entity being typed
-    if (lastWord.includes('.') && this._entities.length > 0) {
+    else if (lastWord.includes('.') && this._entities.length > 0) {
       const query = lastWord.toLowerCase();
       const queryParts = query.split('.');
       const domain = queryParts[0];
       const entityPart = queryParts[1] || '';
 
       // Filter entities by domain and partial entity name
-      const suggestions = this._entities
+      suggestions = this._entities
         .filter(entity => {
           const entityId = entity.entity_id.toLowerCase();
           const entityParts = entityId.split('.');
@@ -2454,51 +2531,186 @@ Instructions:
         })
         .slice(0, 15); // Show more suggestions
 
-      if (suggestions.length > 0) {
-        suggestionsDiv.innerHTML = suggestions.map(entity => {
-          const entityParts = entity.entity_id.split('.');
-          let highlightedName = entity.entity_id;
-          
-          // Only highlight if entityPart exists and is not empty
-          if (entityPart && entityPart.length > 0) {
-            // Escape special regex characters in entityPart
-            const escapedEntityPart = entityPart.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            highlightedName = entity.entity_id.replace(
-              new RegExp(`(${escapedEntityPart})`, 'gi'), 
-              '<strong>$1</strong>'
-            );
-          }
-          
-          return '<div class="entity-suggestion" data-entity="' + entity.entity_id + '">' +
-            '<div class="entity-name">' + highlightedName + '</div>' +
-            '<div class="entity-info">' + entity.friendly_name + ' (' + entity.state + ')</div>' +
-            '</div>';
-        }).join('');
-
-        suggestionsDiv.classList.add('show');
-
-        // Re-attach click events
-        suggestionsDiv.querySelectorAll('.entity-suggestion').forEach(suggestion => {
-          suggestion.addEventListener('click', () => {
-            const entityId = suggestion.dataset.entity;
-            const textarea = root.getElementById('prompt');
-            const currentText = textarea.value;
-            
-            // Replace the last word (partial entity) with the selected entity
-            const words = currentText.split(/\s+/);
-            words[words.length - 1] = entityId;
-            textarea.value = words.join(' ') + ' ';
-            
-            suggestionsDiv.classList.remove('show');
-            textarea.focus();
-          });
-        });
-      } else {
-        suggestionsDiv.classList.remove('show');
-      }
+      this._showSuggestions(suggestions, suggestionsDiv, root, false, entityPart);
     } else {
       suggestionsDiv.classList.remove('show');
     }
+  }
+
+  _showSuggestions(suggestions, suggestionsDiv, root, isCommand, highlightTerm) {
+    console.log('🎨 _showSuggestions called:', suggestions.length, 'items, suggestionsDiv:', !!suggestionsDiv);
+    console.log('🎨 suggestionsDiv details:', suggestionsDiv?.id, suggestionsDiv?.className, suggestionsDiv?.tagName);
+    console.log('🎨 suggestionsDiv parent:', suggestionsDiv?.parentElement);
+    
+    if (!suggestionsDiv) {
+      console.error('❌ No suggestionsDiv found!');
+      return;
+    }
+    
+    if (suggestions.length > 0) {
+      suggestionsDiv.innerHTML = suggestions.map(item => {
+        let displayName = item.entity_id;
+        
+        // Highlight matching terms
+        if (highlightTerm && highlightTerm.length > 0 && !isCommand) {
+          const escapedTerm = highlightTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          displayName = item.entity_id.replace(
+            new RegExp(`(${escapedTerm})`, 'gi'), 
+            '<strong>$1</strong>'
+          );
+        }
+        
+        const className = isCommand ? 'command-suggestion' : 'entity-suggestion';
+        const icon = isCommand ? '/' : (item.domain === 'light' ? '💡' : (item.domain === 'switch' ? '🔘' : '🏠'));
+        
+        return `<div class="${className}" data-entity="${item.entity_id}">
+          <div class="entity-name">${icon} ${displayName}</div>
+          <div class="entity-info">${item.friendly_name} ${item.state ? '(' + item.state + ')' : ''}</div>
+        </div>`;
+      }).join('');
+
+      console.log('✅ Adding show class to suggestionsDiv');
+      suggestionsDiv.classList.add('show');
+      
+      // Position the dropdown correctly using fixed positioning
+      const activeInput = root.querySelector('#chat-input, #prompt');
+      if (activeInput) {
+        const rect = activeInput.getBoundingClientRect();
+        const dropdownHeight = 300; // max-height from CSS
+        const spaceBelow = window.innerHeight - rect.bottom;
+        const spaceAbove = rect.top;
+        
+        // Position above input if not enough space below
+        if (spaceBelow < dropdownHeight && spaceAbove > spaceBelow) {
+          suggestionsDiv.style.top = (rect.top - Math.min(dropdownHeight, spaceAbove) - 4) + 'px';
+        } else {
+          suggestionsDiv.style.top = (rect.bottom + 4) + 'px';
+        }
+        
+        suggestionsDiv.style.left = rect.left + 'px';
+        suggestionsDiv.style.width = rect.width + 'px';
+      }
+      
+      // Reset selection
+      this._selectedSuggestionIndex = -1;
+
+      // Re-attach click events
+      suggestionsDiv.querySelectorAll('.entity-suggestion, .command-suggestion').forEach(suggestion => {
+        suggestion.addEventListener('click', () => {
+          const value = suggestion.dataset.entity;
+          const isCommand = suggestion.classList.contains('command-suggestion');
+          const activeInput = this._getActiveInput();
+          
+          if (activeInput && value) {
+            if (isCommand) {
+              this._handleSlashCommand(value, activeInput);
+            } else {
+              this._insertEntityIntoInput(activeInput, value);
+            }
+            suggestionsDiv.classList.remove('show');
+            this._selectedSuggestionIndex = -1;
+          }
+        });
+      });
+    } else {
+      suggestionsDiv.classList.remove('show');
+    }
+  }
+
+  _handleSlashCommand(command, textarea) {
+    const configTypeSelect = this.shadowRoot.getElementById('config-type');
+    
+    switch(command) {
+      case '/automation':
+        configTypeSelect.value = 'automation';
+        textarea.value = '';
+        textarea.placeholder = 'Describe your automation (e.g., Turn on lights when motion detected)';
+        break;
+      case '/script':
+        configTypeSelect.value = 'script';
+        textarea.value = '';
+        textarea.placeholder = 'Describe your script (e.g., Movie night routine)';
+        break;
+      case '/sensor':
+        configTypeSelect.value = 'sensor';
+        textarea.value = '';
+        textarea.placeholder = 'Describe your sensor (e.g., Average temperature)';
+        break;
+      case '/dashboard':
+        configTypeSelect.value = 'dashboard';
+        textarea.value = '';
+        textarea.placeholder = 'Describe your dashboard (e.g., Energy monitoring panel)';
+        break;
+      case '/scene':
+        configTypeSelect.value = 'scene';
+        textarea.value = '';
+        textarea.placeholder = 'Describe your scene (e.g., Evening mood lighting)';
+        break;
+      case '/helper':
+        configTypeSelect.value = 'helper';
+        textarea.value = '';
+        textarea.placeholder = 'Describe your helper (e.g., House mode selector)';
+        break;
+      case '/clear':
+        textarea.value = '';
+        this._clearResults();
+        break;
+      case '/entities':
+        textarea.value = '';
+        this._showAllEntities();
+        break;
+      default:
+        // Remove the slash command and continue typing
+        textarea.value = '';
+    }
+  }
+
+  _clearResults() {
+    const root = this.shadowRoot;
+    const configDiv = root.getElementById('generated-config');
+    const explanationDiv = root.getElementById('explanation');
+    const warningsDiv = root.getElementById('warnings');
+    
+    if (configDiv) configDiv.textContent = '';
+    if (explanationDiv) explanationDiv.textContent = '';
+    if (warningsDiv) warningsDiv.innerHTML = '';
+    
+    this._showMessage('Results cleared', 'info');
+  }
+
+  _showAllEntities() {
+    const root = this.shadowRoot;
+    const configDiv = root.getElementById('generated-config');
+    
+    if (this._entities.length === 0) {
+      configDiv.textContent = '# No entities found';
+      return;
+    }
+    
+    // Group entities by domain
+    const entitiesByDomain = {};
+    this._entities.forEach(entity => {
+      const domain = entity.entity_id.split('.')[0];
+      if (!entitiesByDomain[domain]) {
+        entitiesByDomain[domain] = [];
+      }
+      entitiesByDomain[domain].push(entity);
+    });
+    
+    // Generate YAML-style output
+    let output = '# All Available Entities\n\n';
+    Object.keys(entitiesByDomain).sort().forEach(domain => {
+      output += `# ${domain.toUpperCase()} (${entitiesByDomain[domain].length})\n`;
+      entitiesByDomain[domain].forEach(entity => {
+        output += `#   ${entity.entity_id} - ${entity.friendly_name} (${entity.state})\n`;
+      });
+      output += '\n';
+    });
+    
+    configDiv.textContent = output;
+    
+    // Switch to generate tab to show results
+    root.querySelector('[data-tab="generate"]').click();
   }
 
   _showMessage(text, type) {
@@ -2734,19 +2946,16 @@ entities:
 
   // Chat Interface Methods
   _initializeChat() {
-    // Initialize conversation listeners
-    this._attachConversationListeners();
-    
     // Add welcome message if no messages exist
     if (this._conversationMessages.length === 0) {
-      this._addChatMessage('assistant', 'Hi! I\'m your AI Configuration Assistant. I can help you create automations, scenes, scripts, dashboards, template sensors, and helpers for Home Assistant. Just describe what you want in natural language, or use slash commands for quick access!');
+      this._addChatMessage('assistant', 'Hi! I\'m your AI Configuration Assistant. I can help you create automations, scenes, scripts, and dashboards for Home Assistant. Just describe what you want in natural language!');
       
       // Add example suggestions
-      this._addChatMessage('system', 'Try: "Turn on the lights when I get home after sunset", or use slash commands like /automation, /scene, /script, /dashboard, /template, or /helper. Type / to see all available commands. Use /settings to configure the AI agent.');
+      this._addChatMessage('system', 'Try: "Turn on the lights when I get home after sunset" or "Create a bedtime routine"');
     }
   }
 
-  _addChatMessage(type, content, extras = {}) {
+  _addChatMessage(type, content, extras = {}, saveToConversation = true) {
     const root = this.shadowRoot;
     const messagesContainer = root.getElementById('chat-messages');
     if (!messagesContainer) return;
@@ -2789,22 +2998,31 @@ entities:
     
     messagesContainer.appendChild(messageEl);
     
-    // Store message in conversation history (only if not loading from history)
-    if (!this._isLoadingFromHistory) {
-      this._conversationMessages.push({ type, content, timestamp, extras });
+    // Store message in conversation history (only save user and assistant messages to conversation)
+    if (saveToConversation && (type === 'user' || type === 'assistant')) {
+      const messageData = { 
+        role: type,
+        content: content,
+        timestamp: Date.now()
+      };
       
-      // Auto-save conversation after adding messages (debounced)
-      if (this._saveTimeout) {
-        clearTimeout(this._saveTimeout);
-      }
-      this._saveTimeout = setTimeout(() => {
-        this._saveCurrentConversation();
-      }, 1000);
+      this._conversationMessages.push(messageData);
+      
+      // Auto-save conversation after adding message
+      setTimeout(() => this._saveCurrentConversation(), 1000);
+      
+      // Update conversation list with new preview
+      setTimeout(() => this._renderConversationsList(), 1500);
     }
     
     // Attach error log listeners if they exist
     if (extras.debugInfo) {
       setTimeout(() => this._attachErrorLogListeners(), 100);
+    }
+    
+    // Attach action button listeners for assistant messages
+    if (type === 'assistant') {
+      setTimeout(() => this._attachActionButtonListeners(), 100);
     }
     
     // Scroll to bottom
@@ -2855,14 +3073,6 @@ entities:
     
     const message = chatInput.value.trim();
     
-    // Check if this is a slash command
-    if (message.startsWith('/')) {
-      this._handleSlashCommand(message);
-      chatInput.value = '';
-      chatInput.style.height = 'auto';
-      return;
-    }
-    
     // Add user message
     this._addChatMessage('user', message);
     
@@ -2885,15 +3095,6 @@ entities:
         return;
       }
       
-      // Check if this is a one-time action request
-      const isOneTimeAction = this._isOneTimeActionRequest(message);
-      
-      if (isOneTimeAction) {
-        // User wants to perform a one-time action
-        await this._handleOneTimeAction(message);
-        return;
-      }
-      
       // Check if this is a refinement request
       const isRefinement = this._isRefinementRequest(message);
       
@@ -2901,17 +3102,14 @@ entities:
         // User wants to refine the last configuration
         await this._refineConfiguration(message);
       } else {
-        // Detect config type first
-        const configType = this._detectConfigType(message);
-        
         // Detect relevant domains and get entities
         const relevantDomains = this._detectRelevantDomains(message);
-        const relevantEntities = this._getRelevantEntities(message, relevantDomains, configType);
+        const relevantEntities = this._getRelevantEntities(message, relevantDomains);
         
         // Store context
         this._conversationContext = {
           originalPrompt: message,
-          configType: configType,
+          configType: this._detectConfigType(message),
           relevantEntities: relevantEntities
         };
         
@@ -2928,515 +3126,6 @@ entities:
     }
   }
 
-  // Slash command handling methods
-  _handleSlashCommandInput(value) {
-    const lines = value.split('\n');
-    const currentLine = lines[lines.length - 1];
-    
-    if (currentLine.startsWith('/')) {
-      this._showSlashCommandAutocomplete(currentLine);
-    } else {
-      this._hideAutocomplete();
-    }
-  }
-
-  _showSlashCommandAutocomplete(input) {
-    const root = this.shadowRoot;
-    const dropdown = root.getElementById('autocomplete-dropdown');
-    
-    if (!dropdown) return;
-    
-    const query = input.slice(1).toLowerCase(); // Remove the /
-    const matchingCommands = this._slashCommands.filter(cmd =>
-      cmd.command.slice(1).toLowerCase().includes(query) ||
-      cmd.name.toLowerCase().includes(query)
-    );
-    
-    if (matchingCommands.length === 0) {
-      this._hideAutocomplete();
-      return;
-    }
-    
-    dropdown.innerHTML = matchingCommands.map((cmd, index) => `
-      <div class="autocomplete-item ${index === 0 ? 'selected' : ''}" data-command="${cmd.command}">
-        <div class="icon">${cmd.icon}</div>
-        <div class="details">
-          <div class="command">${cmd.command} ${cmd.name}</div>
-          <div class="description">${cmd.description}</div>
-        </div>
-      </div>
-    `).join('');
-    
-    // Add click handlers
-    dropdown.querySelectorAll('.autocomplete-item').forEach(item => {
-      item.addEventListener('click', () => {
-        this._selectSlashCommand(item.dataset.command);
-      });
-    });
-    
-    dropdown.classList.add('show');
-    this._showingAutocomplete = true;
-    this._selectedAutocompleteIndex = 0;
-  }
-
-  _hideAutocomplete() {
-    const root = this.shadowRoot;
-    const dropdown = root.getElementById('autocomplete-dropdown');
-    if (dropdown) {
-      dropdown.classList.remove('show');
-      dropdown.innerHTML = '';
-    }
-    this._showingAutocomplete = false;
-    this._selectedAutocompleteIndex = -1;
-  }
-
-  _handleAutocompleteKeydown(e) {
-    const root = this.shadowRoot;
-    const dropdown = root.getElementById('autocomplete-dropdown');
-    const items = dropdown.querySelectorAll('.autocomplete-item');
-    
-    if (items.length === 0) return;
-    
-    switch (e.key) {
-      case 'Escape':
-        e.preventDefault();
-        this._hideAutocomplete();
-        break;
-        
-      case 'ArrowUp':
-        e.preventDefault();
-        this._selectedAutocompleteIndex = Math.max(0, this._selectedAutocompleteIndex - 1);
-        this._updateAutocompleteSelection(items);
-        break;
-        
-      case 'ArrowDown':
-        e.preventDefault();
-        this._selectedAutocompleteIndex = Math.min(items.length - 1, this._selectedAutocompleteIndex + 1);
-        this._updateAutocompleteSelection(items);
-        break;
-        
-      case 'Tab':
-      case 'Enter':
-        e.preventDefault();
-        const selectedItem = items[this._selectedAutocompleteIndex];
-        if (selectedItem) {
-          this._selectSlashCommand(selectedItem.dataset.command);
-        }
-        break;
-    }
-  }
-
-  _updateAutocompleteSelection(items) {
-    items.forEach((item, index) => {
-      item.classList.toggle('selected', index === this._selectedAutocompleteIndex);
-    });
-  }
-
-  _selectSlashCommand(command) {
-    const root = this.shadowRoot;
-    const chatInput = root.getElementById('chat-input');
-    
-    // Special handling for /agent command
-    if (command === '/agent') {
-      this._showAgentSelector();
-      this._hideAutocomplete();
-      return;
-    }
-    
-    // Transform slash command to natural language prompt
-    const prompt = this._transformSlashCommand(command);
-    
-    // Add the transformed prompt but DON'T send automatically
-    chatInput.value = prompt;
-    chatInput.focus();
-    this._hideAutocomplete();
-  }
-
-  _transformSlashCommand(command) {
-    const commandMap = {
-      '/automation': 'Create an automation that ',
-      '/scene': 'Create a scene that defines ',
-      '/script': 'Create a script sequence that ',
-      '/dashboard': 'Create a dashboard layout with ',
-      '/template': 'Create a template sensor that calculates or monitors ',
-      '/helper': 'Create an input helper entity for ',
-      '/agent': 'Switch to a different AI agent: '
-    };
-    
-    const basePrompt = commandMap[command] || 'Help me create ';
-    
-    // Add some context to make it more specific
-    const contextPrompts = {
-      '/automation': 'Create an automation with triggers and actions. Please describe what should trigger it and what should happen.',
-      '/scene': 'Create a scene that sets specific device states. Please describe what devices should be included and their desired states.',
-      '/script': 'Create a script with a sequence of actions. Please describe what steps the script should perform.',
-      '/dashboard': 'Create a custom dashboard layout. Please describe what cards and information should be displayed.',
-      '/template': 'Create a template sensor that calculates values or monitors conditions. Please describe what it should calculate or monitor.',
-      '/helper': 'Create an input helper (input_boolean, input_number, input_select, etc.). Please describe what type of helper and its purpose.',
-      '/agent': 'Select a different AI agent for specialized assistance.'
-    };
-    
-    return contextPrompts[command] || basePrompt;
-  }
-
-  _switchToTab(tabName) {
-    const root = this.shadowRoot;
-    
-    // Update active tab
-    root.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    root.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
-    
-    const targetTab = root.querySelector(`[data-tab="${tabName}"]`);
-    const targetContent = root.getElementById(tabName);
-    
-    if (targetTab && targetContent) {
-      targetTab.classList.add('active');
-      targetContent.classList.add('active');
-      this._currentTab = tabName;
-    }
-  }
-
-  _handleSlashCommand(command) {
-    const cleanCommand = command.split(' ')[0]; // Get just the command part
-    const remainingText = command.substring(cleanCommand.length).trim(); // Get text after command
-    
-    if (!this._slashCommands.find(cmd => cmd.command === cleanCommand)) {
-      this._addChatMessage('system', `Unknown command: ${cleanCommand}. Type / to see available commands.`);
-      return;
-    }
-    
-    // Handle navigation commands
-    const navigationCommands = ['/chat', '/validate', '/preview', '/settings'];
-    if (navigationCommands.includes(cleanCommand)) {
-      const tabName = cleanCommand.substring(1); // Remove the '/'
-      this._switchToTab(tabName);
-      
-      // If there's remaining text, put it back in the chat input
-      const chatInput = this.shadowRoot.getElementById('chat-input');
-      if (remainingText && tabName === 'chat') {
-        chatInput.value = remainingText;
-        chatInput.focus();
-      }
-      return;
-    }
-    
-    // Special handling for /agent command
-    if (cleanCommand === '/agent') {
-      this._switchToTab('settings');
-      return;
-    }
-    
-    // Transform the command and populate input (but don't send)
-    const prompt = this._transformSlashCommand(cleanCommand);
-    const chatInput = this.shadowRoot.getElementById('chat-input');
-    
-    // Set the prompt (and any remaining text) but DON'T send automatically
-    chatInput.value = remainingText ? `${prompt} ${remainingText}` : prompt;
-    
-    // Focus the input so user can review and send manually
-    chatInput.focus();
-    
-    // Hide autocomplete
-    this._hideAutocomplete();
-  }
-
-  // Entity autocomplete methods
-  _setupEntityAutocomplete() {
-    const root = this.shadowRoot;
-    
-    // Setup autocomplete for validate tab
-    const configYaml = root.getElementById('config-yaml');
-    if (configYaml) {
-      this._setupTextareaEntityAutocomplete(configYaml, 'validate-entity-dropdown');
-    }
-    
-    // Setup autocomplete for preview tab
-    const previewYaml = root.getElementById('preview-yaml');
-    if (previewYaml) {
-      this._setupTextareaEntityAutocomplete(previewYaml, 'preview-entity-dropdown');
-    }
-  }
-
-  _setupTextareaEntityAutocomplete(textarea, dropdownId) {
-    const root = this.shadowRoot;
-    const dropdown = root.getElementById(dropdownId);
-    
-    if (!textarea || !dropdown) return;
-    
-    let currentEntityAutocomplete = null;
-    let selectedEntityIndex = -1;
-    
-    // Handle input for entity detection
-    textarea.addEventListener('input', (e) => {
-      const cursorPos = e.target.selectionStart;
-      const textBeforeCursor = e.target.value.substring(0, cursorPos);
-      
-      // Look for entity_id patterns
-      const entityMatch = this._findEntityIdAtCursor(textBeforeCursor);
-      
-      if (entityMatch) {
-        // Get cursor coordinates for positioning
-        const cursorCoords = this._getCursorCoordinates(e.target, cursorPos);
-        
-        this._showEntityAutocomplete(dropdown, entityMatch.query, (entityId) => {
-          // Replace the partial entity_id with the selected one
-          const beforeMatch = e.target.value.substring(0, entityMatch.start);
-          const afterCursor = e.target.value.substring(cursorPos);
-          e.target.value = beforeMatch + entityId + afterCursor;
-          
-          // Position cursor after the inserted entity_id
-          const newCursorPos = entityMatch.start + entityId.length;
-          e.target.setSelectionRange(newCursorPos, newCursorPos);
-          
-          this._hideEntityAutocomplete(dropdown);
-        }, cursorCoords);
-        currentEntityAutocomplete = { dropdown, callback: null };
-        selectedEntityIndex = 0; // Reset selection to first item
-      } else {
-        this._hideEntityAutocomplete(dropdown);
-        currentEntityAutocomplete = null;
-      }
-    });
-    
-    // Handle keyboard navigation
-    textarea.addEventListener('keydown', (e) => {
-      if (currentEntityAutocomplete && dropdown.classList.contains('show')) {
-        const items = dropdown.querySelectorAll('.entity-autocomplete-item');
-        
-        switch (e.key) {
-          case 'Escape':
-            e.preventDefault();
-            this._hideEntityAutocomplete(dropdown);
-            currentEntityAutocomplete = null;
-            break;
-            
-          case 'ArrowUp':
-            e.preventDefault();
-            selectedEntityIndex = Math.max(0, selectedEntityIndex - 1);
-            this._updateEntitySelection(items, selectedEntityIndex);
-            break;
-            
-          case 'ArrowDown':
-            e.preventDefault();
-            selectedEntityIndex = Math.min(items.length - 1, selectedEntityIndex + 1);
-            this._updateEntitySelection(items, selectedEntityIndex);
-            break;
-            
-          case 'Tab':
-          case 'Enter':
-            if (selectedEntityIndex >= 0 && selectedEntityIndex < items.length) {
-              e.preventDefault();
-              items[selectedEntityIndex].click();
-            }
-            break;
-        }
-      }
-    });
-    
-    // Hide dropdown when textarea loses focus (with delay to allow clicks)
-    textarea.addEventListener('blur', () => {
-      setTimeout(() => {
-        if (currentEntityAutocomplete) {
-          this._hideEntityAutocomplete(dropdown);
-          currentEntityAutocomplete = null;
-        }
-      }, 200);
-    });
-  }
-
-  _getCursorCoordinates(textarea, cursorPos) {
-    // Create a mirror div to measure text position
-    const mirror = document.createElement('div');
-    const computedStyle = getComputedStyle(textarea);
-    
-    // Copy textarea styles to mirror
-    mirror.style.position = 'absolute';
-    mirror.style.left = '-9999px';
-    mirror.style.top = '-9999px';
-    mirror.style.whiteSpace = 'pre-wrap';
-    mirror.style.wordWrap = 'break-word';
-    mirror.style.padding = computedStyle.padding;
-    mirror.style.border = computedStyle.border;
-    mirror.style.fontSize = computedStyle.fontSize;
-    mirror.style.fontFamily = computedStyle.fontFamily;
-    mirror.style.lineHeight = computedStyle.lineHeight;
-    mirror.style.width = textarea.offsetWidth + 'px';
-    mirror.style.height = textarea.offsetHeight + 'px';
-    mirror.style.overflow = 'hidden';
-    
-    document.body.appendChild(mirror);
-    
-    // Get text before cursor
-    const textBeforeCursor = textarea.value.substring(0, cursorPos);
-    mirror.textContent = textBeforeCursor;
-    
-    // Add a span to mark cursor position
-    const cursorSpan = document.createElement('span');
-    cursorSpan.textContent = '|';
-    mirror.appendChild(cursorSpan);
-    
-    const textareaRect = textarea.getBoundingClientRect();
-    const cursorSpanRect = cursorSpan.getBoundingClientRect();
-    const mirrorRect = mirror.getBoundingClientRect();
-    
-    // Calculate relative position
-    const x = cursorSpanRect.left - mirrorRect.left;
-    const y = cursorSpanRect.top - mirrorRect.top;
-    
-    document.body.removeChild(mirror);
-    
-    return {
-      x: x + textareaRect.left,
-      y: y + textareaRect.top
-    };
-  }
-
-  _findEntityIdAtCursor(textBeforeCursor) {
-    // Look for patterns like: entity_id: light.kitchen_
-    // or: - light.living_room_
-    // or: entity: switch.bedroom_
-    
-    const patterns = [
-      /entity_id:\s*([a-zA-Z_]*\.[a-zA-Z0-9_]*)$/,
-      /entity:\s*([a-zA-Z_]*\.[a-zA-Z0-9_]*)$/,
-      /^\s*-\s*([a-zA-Z_]*\.[a-zA-Z0-9_]*)$/m,
-      /service_data:\s*entity_id:\s*([a-zA-Z_]*\.[a-zA-Z0-9_]*)$/,
-      /"([a-zA-Z_]*\.[a-zA-Z0-9_]*)"?$/,
-      /'([a-zA-Z_]*\.[a-zA-Z0-9_]*)'?$/
-    ];
-    
-    for (const pattern of patterns) {
-      const match = textBeforeCursor.match(pattern);
-      if (match && match[1]) {
-        const query = match[1];
-        const start = textBeforeCursor.lastIndexOf(query);
-        
-        // Only show autocomplete if the query looks like it could be an entity_id
-        if (query.includes('.') || query.length >= 2) {
-          return { query, start };
-        }
-      }
-    }
-    
-    return null;
-  }
-
-  _showEntityAutocomplete(dropdown, query, callback, cursorCoords = null) {
-    if (!this._entities || this._entities.length === 0) {
-      return;
-    }
-    
-    // Filter entities based on the query
-    const filteredEntities = this._entities.filter(entity => {
-      const entityId = entity.entity_id.toLowerCase();
-      const friendlyName = (entity.friendly_name || '').toLowerCase();
-      const queryLower = query.toLowerCase();
-      
-      return entityId.includes(queryLower) || friendlyName.includes(queryLower);
-    }).slice(0, 10); // Limit to 10 results
-    
-    if (filteredEntities.length === 0) {
-      this._hideEntityAutocomplete(dropdown);
-      return;
-    }
-    
-    // Populate dropdown
-    dropdown.innerHTML = filteredEntities.map((entity, index) => `
-      <div class="entity-autocomplete-item ${index === 0 ? 'selected' : ''}" data-entity-id="${entity.entity_id}">
-        <div class="entity-id">${entity.entity_id}</div>
-        <div class="friendly-name">${entity.friendly_name || ''}</div>
-      </div>
-    `).join('');
-    
-    // Add click handlers
-    dropdown.querySelectorAll('.entity-autocomplete-item').forEach(item => {
-      item.addEventListener('mousedown', (e) => {
-        // Prevent blur event from firing and hiding dropdown
-        e.preventDefault();
-      });
-      item.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        callback(item.dataset.entityId);
-      });
-    });
-    
-    // Position the dropdown at cursor coordinates if provided
-    if (cursorCoords) {
-      dropdown.style.position = 'fixed';
-      dropdown.style.width = '300px'; // Set width first for proper measurement
-      dropdown.style.zIndex = '9999'; // Ensure it appears on top
-      
-      // Calculate dropdown dimensions
-      const dropdownHeight = Math.min(200, filteredEntities.length * 40 + 20); // Estimate height
-      
-      // Calculate positioning with screen bounds checking
-      const viewportWidth = window.innerWidth;
-      const viewportHeight = window.innerHeight;
-      
-      let left = cursorCoords.x;
-      let top = cursorCoords.y + 20; // Show below cursor by default
-      
-      // Check if dropdown goes off right edge
-      if (left + 300 > viewportWidth) {
-        left = viewportWidth - 320; // 20px padding from edge
-      }
-      
-      // Check if dropdown goes off bottom edge
-      if (top + dropdownHeight > viewportHeight) {
-        top = cursorCoords.y - dropdownHeight - 10; // Show above cursor
-      }
-      
-      dropdown.style.left = `${Math.max(10, left)}px`;
-      dropdown.style.top = `${Math.max(10, top)}px`;
-    }
-    
-    dropdown.classList.add('show');
-  }
-
-  _hideEntityAutocomplete(dropdown) {
-    dropdown.classList.remove('show');
-    dropdown.innerHTML = '';
-  }
-
-  _updateEntitySelection(items, selectedIndex) {
-    items.forEach((item, index) => {
-      item.classList.toggle('selected', index === selectedIndex);
-    });
-  }
-
-  _isOneTimeActionRequest(message) {
-    const lower = message.toLowerCase();
-    
-    // Keywords that indicate a one-time action request
-    const actionVerbs = [
-      'turn on', 'turn off', 'switch on', 'switch off', 
-      'toggle', 'activate', 'deactivate', 'open', 'close',
-      'lock', 'unlock', 'start', 'stop', 'set', 'adjust',
-      'increase', 'decrease', 'dim', 'brighten', 'play', 'pause'
-    ];
-    
-    // Time-based keywords that suggest temporary action
-    const timeKeywords = [
-      'for', 'in', 'after', 'minute', 'hour', 'second',
-      'now', 'immediately', 'quickly', 'temporarily'
-    ];
-    
-    // Check if message contains action verbs
-    const hasActionVerb = actionVerbs.some(verb => lower.includes(verb));
-    
-    // Check if it's NOT about creating automation (which would be permanent)
-    const notAutomation = !lower.includes('automation') && 
-                         !lower.includes('when') && 
-                         !lower.includes('every') &&
-                         !lower.includes('always') &&
-                         !lower.includes('create') &&
-                         !lower.includes('make');
-    
-    // It's likely a one-time action if it has an action verb and isn't about automation
-    return hasActionVerb && notAutomation;
-  }
-
   _isRefinementRequest(message) {
     const lower = message.toLowerCase();
     const refinementKeywords = [
@@ -3447,193 +3136,6 @@ entities:
     // Check if we have a previous config and the message contains refinement keywords
     return this._conversationContext.lastConfig && 
            refinementKeywords.some(keyword => lower.includes(keyword));
-  }
-
-  async _handleOneTimeAction(message) {
-    try {
-      this._showTypingIndicator();
-      
-      // Add confirmation message
-      this._addChatMessage('assistant', `I understand you want to perform a one-time action: "${message}". Let me create a script to do this for you.`);
-      
-      // Detect relevant domains and entities
-      const relevantDomains = this._detectRelevantDomains(message);
-      const relevantEntities = this._getRelevantEntities(message, relevantDomains, 'script');
-      
-      // Generate a script for this action
-      const scriptConfig = await this._generateFromChat(message, 'script', relevantEntities, true);
-      
-      if (scriptConfig && scriptConfig.success) {
-        // Parse the script config to extract the script name
-        const scriptYaml = scriptConfig.config;
-        const scriptName = this._extractScriptName(scriptYaml);
-        
-        // Offer to execute immediately
-        this._addChatMessage('assistant', `I've created a script that will ${message}. Would you like me to run it now?`);
-        
-        // Add action buttons
-        const actionButtons = `
-          <div class="action-buttons" style="margin-top: 10px;">
-            <button class="execute-script-btn primary" data-script="${this._escapeHtml(scriptYaml)}" data-name="${scriptName}" style="margin-right: 10px;">
-              ▶️ Execute Now
-            </button>
-            <button class="save-script-btn" data-script="${this._escapeHtml(scriptYaml)}" data-name="${scriptName}">
-              💾 Save for Later
-            </button>
-          </div>
-        `;
-        
-        this._addChatMessage('system', actionButtons);
-        
-        // Attach event listeners
-        setTimeout(() => {
-          this._attachScriptActionListeners();
-        }, 100);
-      }
-      
-    } catch (error) {
-      this._addChatMessage('assistant', `Sorry, I couldn't create a script for that action: ${error.message}`);
-    } finally {
-      this._hideTypingIndicator();
-    }
-  }
-
-  _extractScriptName(scriptYaml) {
-    // Extract the alias from the script YAML
-    const aliasMatch = scriptYaml.match(/alias:\s*['"]?([^'":\n]+)['"]?/);
-    if (aliasMatch) {
-      return aliasMatch[1].toLowerCase().replace(/\s+/g, '_');
-    }
-    return `script_${Date.now()}`;
-  }
-
-  _extractActionParameters(message) {
-    // Extract parameters from the user's message for script execution
-    const parameters = {};
-    
-    // Extract duration/time parameters
-    const durationMatch = message.match(/(\d+)\s*(minute|min|hour|hr|second|sec)s?/i);
-    if (durationMatch) {
-      const value = parseInt(durationMatch[1]);
-      const unit = durationMatch[2].toLowerCase();
-      
-      // Convert to seconds for Home Assistant
-      let seconds = value;
-      if (unit.startsWith('min')) {
-        seconds = value * 60;
-      } else if (unit.startsWith('hour') || unit === 'hr') {
-        seconds = value * 3600;
-      }
-      
-      parameters.duration = seconds;
-    }
-    
-    // Extract brightness parameters
-    const brightnessMatch = message.match(/(\d+)\s*%|brightness\s+(\d+)/i);
-    if (brightnessMatch) {
-      const brightness = parseInt(brightnessMatch[1] || brightnessMatch[2]);
-      parameters.brightness = Math.round((brightness / 100) * 255);
-    }
-    
-    // Extract temperature parameters
-    const tempMatch = message.match(/(\d+)\s*(?:degrees?|°)/i);
-    if (tempMatch) {
-      parameters.temperature = parseInt(tempMatch[1]);
-    }
-    
-    return parameters;
-  }
-
-  _attachScriptActionListeners() {
-    const root = this.shadowRoot;
-    
-    // Execute script button
-    root.querySelectorAll('.execute-script-btn').forEach(btn => {
-      if (!btn.hasListener) {
-        btn.hasListener = true;
-        btn.addEventListener('click', async () => {
-          const scriptYaml = btn.dataset.script;
-          const scriptName = btn.dataset.name;
-          await this._deployAndExecuteScript(scriptYaml, scriptName);
-        });
-      }
-    });
-    
-    // Save script button
-    root.querySelectorAll('.save-script-btn').forEach(btn => {
-      if (!btn.hasListener) {
-        btn.hasListener = true;
-        btn.addEventListener('click', async () => {
-          const scriptYaml = btn.dataset.script;
-          const scriptName = btn.dataset.name;
-          await this._deployScript(scriptYaml, scriptName);
-        });
-      }
-    });
-  }
-
-  async _deployAndExecuteScript(scriptYaml, scriptName) {
-    try {
-      this._addChatMessage('system', '⏳ Deploying and executing script...');
-      
-      // First deploy the script
-      const deployResult = await this._deployConfiguration(scriptYaml, 'script');
-      
-      if (deployResult && deployResult.success) {
-        // Wait a moment for the script to be registered
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // Extract script ID from deployment result
-        const scriptId = deployResult.entity_id ? deployResult.entity_id.replace('script.', '') : 
-                        (deployResult.id || scriptName);
-        
-        try {
-          // Parse the original prompt to extract any parameters
-          const parameters = this._extractActionParameters(this._conversationContext.originalPrompt || '');
-          
-          // Execute the script with parameters
-          await this._hass.callService('script', scriptId, parameters);
-          
-          this._addChatMessage('assistant', `✅ Script executed successfully! The action has been performed.`);
-          
-          // Provide link to the script
-          const scriptUrl = `/config/script/edit/${scriptId}`;
-          this._addChatMessage('system', `📝 The script has been saved as "${scriptName}" and you can [edit it here](${scriptUrl}) or run it again anytime.`);
-          
-        } catch (execError) {
-          console.error('Script execution error:', execError);
-          const scriptUrl = `/config/script/edit/${scriptId}`;
-          this._addChatMessage('system', `⚠️ Script was created but couldn't be executed immediately. You can run it manually from [here](${scriptUrl}).`);
-        }
-      } else {
-        this._addChatMessage('system', `❌ Failed to deploy script: ${deployResult?.error || 'Unknown error'}`);
-      }
-      
-    } catch (error) {
-      this._addChatMessage('system', `❌ Error: ${error.message}`);
-    }
-  }
-
-  async _deployScript(scriptYaml, scriptName) {
-    try {
-      this._addChatMessage('system', '💾 Saving script...');
-      
-      const deployResult = await this._deployConfiguration(scriptYaml, 'script');
-      
-      if (deployResult && deployResult.success) {
-        // Extract script ID from deployment result
-        const scriptId = deployResult.entity_id ? deployResult.entity_id.replace('script.', '') : 
-                        (deployResult.id || scriptName);
-        const scriptUrl = `/config/script/edit/${scriptId}`;
-        
-        this._addChatMessage('assistant', `✅ Script saved successfully! You can [edit it here](${scriptUrl}) or run it from the Scripts page.`);
-      } else {
-        this._addChatMessage('system', `❌ Failed to save script: ${deployResult?.error || 'Unknown error'}`);
-      }
-      
-    } catch (error) {
-      this._addChatMessage('system', `❌ Error saving script: ${error.message}`);
-    }
   }
 
   async _refineConfiguration(refinementRequest) {
@@ -3711,33 +3213,8 @@ entities:
 
   _detectConfigType(prompt) {
     const lower = prompt.toLowerCase();
-    
-    // Check for specific helper types first
-    if (lower.includes('toggle') || lower.includes('switch') && (lower.includes('input') || lower.includes('helper'))) {
-      return 'input_boolean';
-    } else if (lower.includes('slider') || lower.includes('number') && (lower.includes('input') || lower.includes('helper'))) {
-      return 'input_number';
-    } else if (lower.includes('text') && (lower.includes('input') || lower.includes('helper'))) {
-      return 'input_text';
-    } else if (lower.includes('dropdown') || lower.includes('select') && (lower.includes('input') || lower.includes('helper'))) {
-      return 'input_select';
-    } else if (lower.includes('date') || lower.includes('time') && (lower.includes('input') || lower.includes('helper'))) {
-      return 'input_datetime';
-    } else if (lower.includes('button') && (lower.includes('input') || lower.includes('helper'))) {
-      return 'input_button';
-    } else if (lower.includes('helper')) {
-      return 'helper'; // Generic helper, will be determined by the LLM
-    }
-    
-    // Check for sensor types
-    else if (lower.includes('sensor') || lower.includes('template') || 
-             lower.includes('average') || lower.includes('calculate') || lower.includes('combine')) {
-      return 'sensor';
-    }
-    
-    // Standard config types
-    else if (lower.includes('automation') || lower.includes('when') || lower.includes('trigger') || 
-             lower.includes('alert') || lower.includes('notify') || lower.includes('if')) {
+    if (lower.includes('automation') || lower.includes('when') || lower.includes('trigger') || 
+        lower.includes('alert') || lower.includes('notify') || lower.includes('if')) {
       return 'automation';
     } else if (lower.includes('scene')) {
       return 'scene';
@@ -3745,8 +3222,9 @@ entities:
       return 'script';
     } else if (lower.includes('dashboard') || lower.includes('card') || lower.includes('lovelace')) {
       return 'lovelace';
+    } else if (lower.includes('sensor') || lower.includes('template')) {
+      return 'sensor';
     }
-    
     return 'automation'; // Default
   }
 
@@ -3833,14 +3311,14 @@ entities:
     });
   }
 
-  _getRelevantEntities(prompt, domains, configType) {
+  _getRelevantEntities(prompt, domains) {
     if (!this._entities || this._entities.length === 0) return [];
     
     const lowerPrompt = prompt.toLowerCase();
     
     // Extract potential location/room keywords from the prompt
     const locationKeywords = this._extractLocationKeywords(lowerPrompt);
-    console.log('Entity filtering:', { prompt: lowerPrompt, locationKeywords, domains, configType });
+    console.log('Entity filtering:', { prompt: lowerPrompt, locationKeywords, domains });
     
     // Start with domain-filtered entities
     let relevantEntities = this._entities.filter(entity => {
@@ -3850,67 +3328,30 @@ entities:
     
     console.log(`Initial domain filtering: ${relevantEntities.length} entities from domains: ${domains.join(', ')}`);
     
-    // If no entities found with domain filtering and this is a dashboard, get ALL entities
-    if (relevantEntities.length === 0 && (configType === 'dashboard' || configType === 'lovelace')) {
-      console.log('No domain-specific entities found for dashboard, including all entities');
-      relevantEntities = [...this._entities];
+    // If we have location keywords, prioritize entities that match them
+    if (locationKeywords.length > 0) {
+      const locationFiltered = relevantEntities.filter(entity => {
+        const entityId = entity.entity_id.toLowerCase();
+        const friendlyName = (entity.friendly_name || '').toLowerCase();
+        
+        return locationKeywords.some(keyword => 
+          entityId.includes(keyword) || friendlyName.includes(keyword)
+        );
+      });
+      
+      // If we found location-specific entities, use them; otherwise fall back to domain filtering
+      if (locationFiltered.length > 0) {
+        console.log(`Location filtering found ${locationFiltered.length} relevant entities`);
+        relevantEntities = locationFiltered;
+      } else {
+        console.log('No location-specific entities found, using domain filtering');
+      }
     }
     
-    // For dashboards, we should provide ALL entities of the relevant domains
-    // to ensure the LLM has access to all real entity IDs
-    if (configType === 'dashboard' || configType === 'lovelace') {
-      // For dashboards, include ALL entities from relevant domains
-      // Don't filter by location unless explicitly specified
-      if (locationKeywords.length > 0) {
-        // If location is specified, add those as well but keep all domain entities
-        const locationFiltered = this._entities.filter(entity => {
-          const entityId = entity.entity_id.toLowerCase();
-          const friendlyName = (entity.friendly_name || '').toLowerCase();
-          
-          return locationKeywords.some(keyword => 
-            entityId.includes(keyword) || friendlyName.includes(keyword)
-          );
-        });
-        
-        // Combine domain filtered and location filtered entities
-        const combinedSet = new Set([...relevantEntities, ...locationFiltered]);
-        relevantEntities = Array.from(combinedSet);
-        console.log(`Dashboard: Including ${relevantEntities.length} entities (domain + location filtered)`);
-      } else {
-        console.log(`Dashboard: Including all ${relevantEntities.length} entities from relevant domains`);
-      }
-      
-      // For dashboards, increase the limit since we need more entities
-      if (relevantEntities.length > 200) {
-        console.warn(`Too many entities (${relevantEntities.length}), limiting to 200 for dashboard`);
-        relevantEntities = relevantEntities.slice(0, 200);
-      }
-    } else {
-      // For automations, scripts, etc., use more targeted filtering
-      if (locationKeywords.length > 0) {
-        const locationFiltered = relevantEntities.filter(entity => {
-          const entityId = entity.entity_id.toLowerCase();
-          const friendlyName = (entity.friendly_name || '').toLowerCase();
-          
-          return locationKeywords.some(keyword => 
-            entityId.includes(keyword) || friendlyName.includes(keyword)
-          );
-        });
-        
-        // If we found location-specific entities, use them; otherwise fall back to domain filtering
-        if (locationFiltered.length > 0) {
-          console.log(`Location filtering found ${locationFiltered.length} relevant entities`);
-          relevantEntities = locationFiltered;
-        } else {
-          console.log('No location-specific entities found, using domain filtering');
-        }
-      }
-      
-      // Limit entities to prevent service overload (max 100 entities for non-dashboards)
-      if (relevantEntities.length > 100) {
-        console.warn(`Too many entities (${relevantEntities.length}), limiting to 100 most relevant`);
-        relevantEntities = relevantEntities.slice(0, 100);
-      }
+    // Limit entities to prevent service overload (max 100 entities)
+    if (relevantEntities.length > 100) {
+      console.warn(`Too many entities (${relevantEntities.length}), limiting to 100 most relevant`);
+      relevantEntities = relevantEntities.slice(0, 100);
     }
     
     return relevantEntities;
@@ -4032,23 +3473,17 @@ Please share this information when reporting issues.`;
         <div class="config-preview-actions">
           <button class="copy-config-btn">📋 Copy</button>
           <button class="edit-config-btn">✏️ Edit</button>
-          <div class="deploy-options">
-            <select class="deploy-target">
-              <option value="database">Deploy to Database</option>
-              <option value="yaml">Export to YAML File</option>
-            </select>
-            <button class="deploy-config-btn primary" data-config="${this._escapeHtml(config)}" data-type="${configType}">🚀 Deploy</button>
-          </div>
+          <button class="deploy-config-btn primary" data-config="${this._escapeHtml(config)}" data-type="${configType}">🚀 Deploy</button>
         </div>
       </div>
     `;
   }
 
-  async _generateFromChat(prompt, configType, entities, returnResult = false) {
+  async _generateFromChat(prompt, configType, entities) {
     let serviceCall = {};
     
     try {
-      // Don't show typing indicator here - it's already shown in _handleChatSend or handler
+      // Don't show typing indicator here - it's already shown in _handleChatSend
       
       // Detect relevant domains for debug info
       const relevantDomains = this._detectRelevantDomains(prompt);
@@ -4065,18 +3500,13 @@ Please share this information when reporting issues.`;
         entityIds: entities.map(e => (e.entity || e).entity_id)
       };
 
-      // Normalize config type for backend compatibility
-      const normalizedConfigType = configType === 'lovelace' ? 'dashboard' : configType;
-      
       serviceCall = {
         prompt: prompt,
-        type: normalizedConfigType,
+        type: configType,
         entities: entities.map(e => (e.entity || e).entity_id)
       };
 
       console.log('Making service call with:', serviceCall);
-      console.log('Config type:', configType, '-> normalized to:', normalizedConfigType);
-      console.log('Number of entities being sent:', entities.length);
       // In Home Assistant 2024.8+, we need to use callWS for services that return data
       let result = await this._hass.callWS({
         type: 'call_service',
@@ -4142,11 +3572,6 @@ Please share this information when reporting issues.`;
       }
       
       if (result && result.success && result.config) {
-        // If we're returning the result (for one-time actions), just return it
-        if (returnResult) {
-          return result;
-        }
-        
         // Update debug tab
         this._updateDebugTab(debugInfo, result.config);
         
@@ -4344,6 +3769,71 @@ Please share this information when reporting issues.`;
     });
   }
 
+  _attachActionButtonListeners() {
+    const root = this.shadowRoot;
+    
+    // Action buttons for executing scripts
+    root.querySelectorAll('.execute-script-btn').forEach(btn => {
+      if (!btn.hasListener) {
+        btn.hasListener = true;
+        btn.addEventListener('click', async () => {
+          const scriptName = btn.getAttribute('data-script');
+          if (scriptName && scriptName.startsWith('script:')) {
+            try {
+              // Extract the script entity ID (remove 'script:' prefix)
+              const entityId = scriptName.replace('script:', '');
+              
+              // Add feedback
+              this._addChatMessage('system', `🔄 Executing ${btn.getAttribute('data-name') || scriptName}...`);
+              
+              // Call the script service
+              await this._hass.callService('script', 'turn_on', {
+                entity_id: `script.${entityId}`
+              });
+              
+              // Success feedback
+              this._addChatMessage('system', `✅ Successfully executed ${btn.getAttribute('data-name') || scriptName}`);
+            } catch (error) {
+              console.error('Failed to execute script:', error);
+              this._addChatMessage('system', `❌ Failed to execute script: ${error.message}`);
+            }
+          }
+        });
+      }
+    });
+    
+    // Save script buttons
+    root.querySelectorAll('.save-script-btn').forEach(btn => {
+      if (!btn.hasListener) {
+        btn.hasListener = true;
+        btn.addEventListener('click', () => {
+          const scriptData = btn.getAttribute('data-script');
+          if (scriptData) {
+            try {
+              // Parse the script data from the button
+              const scriptYaml = scriptData;
+              
+              // Switch to the validate tab with the script configuration
+              const validateTextarea = root.getElementById('config-yaml');
+              if (validateTextarea) {
+                validateTextarea.value = scriptYaml;
+                // Switch to validate tab
+                const validateTab = root.querySelector('[data-tab="validate"]');
+                if (validateTab) {
+                  validateTab.click();
+                }
+                this._addChatMessage('system', '📝 Script configuration loaded in the Validate tab for review and deployment.');
+              }
+            } catch (error) {
+              console.error('Failed to save script:', error);
+              this._addChatMessage('system', `❌ Failed to load script configuration: ${error.message}`);
+            }
+          }
+        });
+      }
+    });
+  }
+
   _attachConfigPreviewListeners() {
     const root = this.shadowRoot;
     
@@ -4380,16 +3870,9 @@ Please share this information when reporting issues.`;
       if (!btn.hasListener) {
         btn.hasListener = true;
         btn.addEventListener('click', async () => {
-          const configPreview = btn.closest('.config-preview-message');
-          const config = configPreview.querySelector('pre').textContent;
+          const config = btn.closest('.config-preview-message').querySelector('pre').textContent;
           const configType = btn.dataset.type;
-          const deployTarget = configPreview.querySelector('.deploy-target').value;
-          
-          if (deployTarget === 'yaml') {
-            await this._exportToYaml(config, configType);
-          } else {
-            await this._deployConfiguration(config, configType);
-          }
+          await this._deployConfiguration(config, configType);
         });
       }
     });
@@ -4424,421 +3907,99 @@ Please share this information when reporting issues.`;
     }
   }
 
-  // Agent selector methods
-  _showAgentSelector() {
-    const root = this.shadowRoot;
-    
-    // Create agent selector modal/dropdown
-    let agentModal = root.getElementById('agent-selector-modal');
-    if (!agentModal) {
-      agentModal = document.createElement('div');
-      agentModal.id = 'agent-selector-modal';
-      agentModal.innerHTML = `
-        <div class="agent-modal-backdrop">
-          <div class="agent-modal-content">
-            <h3>Select AI Agent</h3>
-            <div class="agent-list">
-              ${this._availableAgents.map(agent => `
-                <div class="agent-option" data-agent-id="${agent.id}">
-                  <span class="agent-option-icon">${agent.icon}</span>
-                  <div class="agent-option-details">
-                    <div class="agent-option-name">${agent.name}</div>
-                    <div class="agent-option-description">${agent.description}</div>
-                  </div>
-                  ${this._currentAgent.id === agent.id ? '<span class="agent-selected-indicator">✓</span>' : ''}
-                </div>
-              `).join('')}
-            </div>
-            <button class="agent-modal-close">Cancel</button>
-          </div>
-        </div>
-      `;
-      
-      // Add styles for the modal
-      const style = document.createElement('style');
-      style.textContent = `
-        .agent-modal-backdrop {
-          position: fixed;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 100%;
-          background: rgba(0, 0, 0, 0.5);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 10000;
-        }
-        
-        .agent-modal-content {
-          background: var(--card-background-color, #ffffff);
-          border-radius: 12px;
-          padding: 24px;
-          max-width: 400px;
-          width: 90%;
-          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-        }
-        
-        .agent-modal-content h3 {
-          margin: 0 0 16px 0;
-          color: var(--primary-text-color);
-          font-size: 18px;
-        }
-        
-        .agent-list {
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-          margin-bottom: 20px;
-        }
-        
-        .agent-option {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding: 12px;
-          border: 1px solid var(--divider-color);
-          border-radius: 8px;
-          cursor: pointer;
-          transition: all 0.2s ease;
-          position: relative;
-        }
-        
-        .agent-option:hover {
-          background: var(--secondary-background-color);
-          border-color: var(--primary-color);
-        }
-        
-        .agent-option-icon {
-          font-size: 20px;
-        }
-        
-        .agent-option-details {
-          flex: 1;
-        }
-        
-        .agent-option-name {
-          font-weight: 500;
-          color: var(--primary-text-color);
-          margin-bottom: 4px;
-        }
-        
-        .agent-option-description {
-          font-size: 12px;
-          color: var(--secondary-text-color);
-        }
-        
-        .agent-selected-indicator {
-          color: var(--primary-color);
-          font-weight: bold;
-        }
-        
-        .agent-modal-close {
-          width: 100%;
-          padding: 10px;
-          background: var(--secondary-background-color);
-          border: 1px solid var(--divider-color);
-          border-radius: 6px;
-          cursor: pointer;
-          color: var(--primary-text-color);
-        }
-        
-        .agent-modal-close:hover {
-          background: var(--divider-color);
-        }
-      `;
-      
-      agentModal.appendChild(style);
-      root.appendChild(agentModal);
-      
-      // Add event listeners
-      agentModal.querySelectorAll('.agent-option').forEach(option => {
-        option.addEventListener('click', () => {
-          const agentId = option.dataset.agentId;
-          this._selectAgent(agentId);
-          this._hideAgentSelector();
-        });
-      });
-      
-      agentModal.querySelector('.agent-modal-close').addEventListener('click', () => {
-        this._hideAgentSelector();
-      });
-      
-      agentModal.querySelector('.agent-modal-backdrop').addEventListener('click', (e) => {
-        if (e.target === e.currentTarget) {
-          this._hideAgentSelector();
-        }
-      });
-    } else {
-      agentModal.style.display = 'block';
-    }
-  }
-
-  _hideAgentSelector() {
-    const root = this.shadowRoot;
-    const agentModal = root.getElementById('agent-selector-modal');
-    if (agentModal) {
-      agentModal.remove();
-    }
-  }
-
-  _selectAgent(agentId) {
-    const agent = this._availableAgents.find(a => a.id === agentId);
-    if (agent) {
-      this._currentAgent = agent;
-      this._updateAgentDisplay();
-      
-      // Add a system message about the agent change
-      this._addChatMessage('system', `Switched to ${agent.name}. ${agent.description}`);
-    }
-  }
-
-  _updateAgentDisplay() {
-    const root = this.shadowRoot;
-    const agentIcon = root.querySelector('.agent-icon');
-    const agentName = root.querySelector('.agent-name');
-    const agentNameSettings = root.getElementById('agent-name-settings');
-    const agentIconSettings = root.querySelector('#agent-indicator-settings .agent-icon');
-    
-    if (agentIcon && agentName) {
-      agentIcon.textContent = this._currentAgent.icon;
-      agentName.textContent = this._currentAgent.name;
-    }
-    
-    // Update settings tab display as well
-    if (agentNameSettings && agentIconSettings) {
-      agentNameSettings.textContent = this._currentAgent.name;
-      agentIconSettings.textContent = this._currentAgent.icon;
-    }
-  }
-  
-  async _loadSettings() {
-    const root = this.shadowRoot;
-    
-    // Load saved auto-label configuration
-    const savedLabelId = localStorage.getItem('ai-config-auto-label') || '';
-    this._selectedLabelId = savedLabelId;
-    
-    // Set up label picker
-    await this._setupLabelPicker();
-    
-    // Load available labels
-    await this._loadAvailableLabels();
-  }
-  
-  _saveSettings() {
-    // Save auto-label configuration
-    localStorage.setItem('ai-config-auto-label', this._selectedLabelId || '');
-    
-    this._showMessage('Settings saved successfully!', 'success');
-  }
-  
-  async _setupLabelPicker() {
-    const root = this.shadowRoot;
-    const labelButton = root.getElementById('label-picker-button');
-    const labelDropdown = root.getElementById('label-dropdown');
-    
-    if (!labelButton || !labelDropdown) return;
-    
-    // Toggle dropdown on button click
-    labelButton.addEventListener('click', (e) => {
-      e.stopPropagation();
-      labelDropdown.classList.toggle('open');
-    });
-    
-    // Close dropdown when clicking outside
-    document.addEventListener('click', () => {
-      labelDropdown.classList.remove('open');
-    });
-    
-    // Prevent dropdown from closing when clicking inside it
-    labelDropdown.addEventListener('click', (e) => {
-      e.stopPropagation();
-    });
-  }
-  
-  async _loadAvailableLabels() {
-    if (!this._hass) return;
-    
-    try {
-      // Fetch available labels from Home Assistant
-      const labels = await this._hass.callWS({
-        type: 'config/label_registry/list'
-      });
-      
-      this._availableLabels = labels || [];
-      this._updateLabelDropdown();
-      this._updateSelectedLabelDisplay();
-    } catch (error) {
-      console.warn('Could not load labels:', error);
-      this._availableLabels = [];
-      this._updateLabelDropdown();
-      this._updateSelectedLabelDisplay();
-    }
-  }
-  
-  _updateLabelDropdown() {
-    const root = this.shadowRoot;
-    const dropdown = root.getElementById('label-dropdown');
-    const noLabelsMessage = root.getElementById('no-labels-message');
-    
-    if (!dropdown) return;
-    
-    // Clear existing content
-    dropdown.innerHTML = '';
-    
-    if (this._availableLabels.length === 0) {
-      const noLabelsDiv = document.createElement('div');
-      noLabelsDiv.className = 'no-labels-message';
-      noLabelsDiv.textContent = 'No labels found. Create one in Home Assistant first.';
-      dropdown.appendChild(noLabelsDiv);
-      
-      const createOption = document.createElement('div');
-      createOption.className = 'label-option create-label-option';
-      createOption.innerHTML = `
-        <span class="label-icon">➕</span>
-        <span>Manage Labels in Home Assistant</span>
-      `;
-      createOption.addEventListener('click', () => this._openLabelManagement());
-      dropdown.appendChild(createOption);
-      return;
-    }
-    
-    // Add "No label" option
-    const noLabelOption = document.createElement('div');
-    noLabelOption.className = 'label-option';
-    if (!this._selectedLabelId) {
-      noLabelOption.classList.add('selected');
-    }
-    noLabelOption.innerHTML = `
-      <span class="label-icon" style="background-color: #888;">${this._renderIcon('🏷️')}</span>
-      <span>No label</span>
-    `;
-    noLabelOption.addEventListener('click', () => this._selectLabel(null));
-    dropdown.appendChild(noLabelOption);
-    
-    // Add existing labels
-    this._availableLabels.forEach(label => {
-      const option = document.createElement('div');
-      option.className = 'label-option';
-      if (this._selectedLabelId === label.label_id) {
-        option.classList.add('selected');
-      }
-      
-      const labelColor = label.color || '#888888';
-      const labelIcon = label.icon || '🏷️';
-      
-      option.innerHTML = `
-        <span class="label-icon" style="background-color: ${labelColor};">${this._renderIcon(labelIcon)}</span>
-        <span>${label.name}</span>
-      `;
-      
-      option.addEventListener('click', () => this._selectLabel(label.label_id, label.name, labelIcon, labelColor));
-      dropdown.appendChild(option);
-    });
-    
-    // Add "Create new label" option
-    const createOption = document.createElement('div');
-    createOption.className = 'label-option create-label-option';
-    createOption.innerHTML = `
-      <span class="label-icon">➕</span>
-      <span>Manage Labels in Home Assistant</span>
-    `;
-    createOption.addEventListener('click', () => this._openLabelManagement());
-    dropdown.appendChild(createOption);
-  }
-  
-  _selectLabel(labelId, labelName = null, labelIcon = null, labelColor = null) {
-    const root = this.shadowRoot;
-    const dropdown = root.getElementById('label-dropdown');
-    
-    this._selectedLabelId = labelId;
-    
-    // Update visual selection in dropdown
-    dropdown.querySelectorAll('.label-option').forEach(option => {
-      option.classList.remove('selected');
-    });
-    
-    if (labelId) {
-      const selectedOption = Array.from(dropdown.querySelectorAll('.label-option'))
-        .find(option => option.querySelector('span:last-child')?.textContent === labelName);
-      if (selectedOption) {
-        selectedOption.classList.add('selected');
-      }
-    } else {
-      // Select "No label" option
-      dropdown.querySelector('.label-option:first-child')?.classList.add('selected');
-    }
-    
-    this._updateSelectedLabelDisplay();
-    dropdown.classList.remove('open');
-  }
-  
-  _updateSelectedLabelDisplay() {
-    const root = this.shadowRoot;
-    const labelIcon = root.getElementById('selected-label-icon');
-    const labelName = root.getElementById('selected-label-name');
-    
-    if (!labelIcon || !labelName) return;
-    
-    if (!this._selectedLabelId) {
-      labelIcon.innerHTML = this._renderIcon('🏷️');
-      labelIcon.style.backgroundColor = '#888';
-      labelName.textContent = 'No label selected';
-      return;
-    }
-    
-    // Find the selected label in available labels
-    const selectedLabel = this._availableLabels.find(label => label.label_id === this._selectedLabelId);
-    if (selectedLabel) {
-      labelIcon.innerHTML = this._renderIcon(selectedLabel.icon || '🏷️');
-      labelIcon.style.backgroundColor = selectedLabel.color || '#888888';
-      labelName.textContent = selectedLabel.name;
-    } else {
-      // Fallback if label not found (maybe it was deleted)
-      labelIcon.innerHTML = this._renderIcon('🏷️');
-      labelIcon.style.backgroundColor = '#888';
-      labelName.textContent = 'Label not found';
-    }
-  }
-  
-  _openLabelManagement() {
-    // Open Home Assistant's label management page
-    const labelUrl = '/config/labels';
-    
-    // Try to navigate using Home Assistant's navigation
-    if (this._hass && this._hass.navigate) {
-      this._hass.navigate(labelUrl);
-    } else {
-      // Fallback: open in new tab
-      window.open(labelUrl, '_blank');
-    }
-  }
-
-  _renderIcon(iconString) {
-    // Handle MDI icons (mdi:icon-name format)
-    if (typeof iconString === 'string' && iconString.toLowerCase().startsWith('mdi:')) {
-      return `<ha-icon icon="${iconString}"></ha-icon>`;
-    }
-    
-    // Handle other icon formats (might be other icon systems in the future)
-    if (typeof iconString === 'string' && iconString.includes(':')) {
-      return `<ha-icon icon="${iconString}"></ha-icon>`;
-    }
-    
-    // Handle text/emoji icons or fallback
-    return iconString || '🏷️';
-  }
-
   _escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
   }
 
+  _isValidActionButtonHTML(html) {
+    // Security validation for action button HTML
+    // Only allow specific, safe HTML elements and attributes for action buttons
+    
+    // Check if it's a proper action-buttons div
+    if (!html.match(/^<div class="action-buttons"[^>]*>/)) {
+      return false;
+    }
+    
+    // Define allowed elements and attributes
+    const allowedElements = ['div', 'button'];
+    const allowedAttributes = ['class', 'data-script', 'data-name', 'style', 'margin-right'];
+    
+    // Create a temporary DOM element to parse and validate the HTML
+    const tempDiv = document.createElement('div');
+    try {
+      tempDiv.innerHTML = html;
+      
+      // Recursively validate all elements
+      const validateElement = (element) => {
+        // Check if element type is allowed
+        if (!allowedElements.includes(element.tagName.toLowerCase())) {
+          return false;
+        }
+        
+        // Check if all attributes are allowed
+        for (const attr of element.attributes) {
+          if (!allowedAttributes.includes(attr.name.toLowerCase())) {
+            return false;
+          }
+        }
+        
+        // Validate data-script attribute contains only safe script references
+        if (element.hasAttribute('data-script')) {
+          const script = element.getAttribute('data-script');
+          // Only allow script references that look like valid Home Assistant scripts
+          if (!script.match(/^script:[a-zA-Z0-9_\.]+$/)) {
+            return false;
+          }
+        }
+        
+        // Validate children recursively
+        for (const child of element.children) {
+          if (!validateElement(child)) {
+            return false;
+          }
+        }
+        
+        return true;
+      };
+      
+      // Validate the main div
+      const mainDiv = tempDiv.firstElementChild;
+      return validateElement(mainDiv);
+      
+    } catch (e) {
+      // If parsing fails, reject the HTML
+      return false;
+    }
+  }
+
   _renderMarkdownLinks(text) {
-    // Escape HTML first, then convert markdown links to HTML
-    let escaped = this._escapeHtml(text);
+    // First, extract and preserve safe action button HTML before escaping
+    const actionButtonPattern = /<div class="action-buttons"[^>]*>.*?<\/div>/gs;
+    const actionButtons = [];
+    let textWithPlaceholders = text;
+    
+    // Extract action buttons and replace with placeholders
+    let match;
+    let placeholderIndex = 0;
+    while ((match = actionButtonPattern.exec(text)) !== null) {
+      if (this._isValidActionButtonHTML(match[0])) {
+        const placeholder = `__ACTION_BUTTON_${placeholderIndex}__`;
+        actionButtons[placeholderIndex] = match[0];
+        textWithPlaceholders = textWithPlaceholders.replace(match[0], placeholder);
+        placeholderIndex++;
+      }
+    }
+    
+    // Escape HTML for everything else
+    let escaped = this._escapeHtml(textWithPlaceholders);
+    
+    // Restore safe action buttons (unescaped)
+    actionButtons.forEach((buttonHTML, index) => {
+      const placeholder = `__ACTION_BUTTON_${index}__`;
+      escaped = escaped.replace(placeholder, buttonHTML);
+    });
     
     // Convert markdown links [text](url) to HTML links
     escaped = escaped.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, linkText, url) => {
@@ -4856,121 +4017,20 @@ Please share this information when reporting issues.`;
     return escaped;
   }
 
-  async _exportToYaml(config, configType) {
-    try {
-      this._addChatMessage('system', `Exporting ${configType} to YAML file...`);
-      
-      // Determine the appropriate file and location based on config type
-      const yamlFileInfo = this._getYamlFileInfo(configType);
-      
-      // Create a downloadable YAML file
-      const blob = new Blob([config], { type: 'text/yaml' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      
-      // Generate filename with timestamp
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
-      a.download = `${configType}_${timestamp}.yaml`;
-      
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-      
-      // Provide instructions for where to place the file
-      let instructions = `✅ YAML file downloaded successfully!\n\n`;
-      instructions += `📁 **File saved as:** ${a.download}\n\n`;
-      instructions += `📝 **Instructions for adding to Home Assistant:**\n\n`;
-      
-      if (configType === 'automation') {
-        instructions += `1. Place the file in your Home Assistant config directory\n`;
-        instructions += `2. Add to your \`configuration.yaml\`:\n\`\`\`yaml\nautomation: !include automations.yaml\n\`\`\`\n`;
-        instructions += `3. Or if using split configuration:\n\`\`\`yaml\nautomation: !include_dir_merge_list automations/\n\`\`\`\n`;
-        instructions += `4. Reload automations or restart Home Assistant\n`;
-      } else if (configType === 'script') {
-        instructions += `1. Place the file in your Home Assistant config directory\n`;
-        instructions += `2. Add to your \`configuration.yaml\`:\n\`\`\`yaml\nscript: !include scripts.yaml\n\`\`\`\n`;
-        instructions += `3. Or if using split configuration:\n\`\`\`yaml\nscript: !include_dir_merge_named scripts/\n\`\`\`\n`;
-        instructions += `4. Reload scripts or restart Home Assistant\n`;
-      } else if (configType === 'scene') {
-        instructions += `1. Place the file in your Home Assistant config directory\n`;
-        instructions += `2. Add to your \`configuration.yaml\`:\n\`\`\`yaml\nscene: !include scenes.yaml\n\`\`\`\n`;
-        instructions += `3. Or if using split configuration:\n\`\`\`yaml\nscene: !include_dir_merge_list scenes/\n\`\`\`\n`;
-        instructions += `4. Reload scenes or restart Home Assistant\n`;
-      } else if (configType === 'dashboard' || configType === 'lovelace') {
-        instructions += `1. Go to your Dashboard configuration\n`;
-        instructions += `2. Click the three dots menu → Edit Dashboard\n`;
-        instructions += `3. Click the three dots menu → Raw configuration editor\n`;
-        instructions += `4. Add the content from the downloaded file\n`;
-        instructions += `5. Save the configuration\n`;
-      } else if (configType === 'sensor' || configType === 'binary_sensor' || configType === 'template') {
-        instructions += `1. Add the content to your \`configuration.yaml\`\n`;
-        instructions += `2. Or create a separate file and include it:\n\`\`\`yaml\ntemplate: !include templates.yaml\n\`\`\`\n`;
-        instructions += `3. Check configuration: Developer Tools → YAML → Check Configuration\n`;
-        instructions += `4. Restart Home Assistant to apply changes (Settings → System → Restart)\n`;
-      } else if (configType.includes('input_')) {
-        instructions += `1. Add the content to your \`configuration.yaml\`\n`;
-        instructions += `2. Or create a separate file and include it:\n\`\`\`yaml\n${configType}: !include ${configType}.yaml\n\`\`\`\n`;
-        instructions += `3. Check configuration: Developer Tools → YAML → Check Configuration\n`;
-        instructions += `4. Restart Home Assistant to apply changes\n`;
-      } else {
-        instructions += `1. Add the content to your \`configuration.yaml\`\n`;
-        instructions += `2. Check configuration: Developer Tools → YAML → Check Configuration\n`;
-        instructions += `3. Reload or restart Home Assistant as needed\n`;
-      }
-      
-      instructions += `\n💡 **Tip:** You can also copy the configuration from above and paste it directly into your YAML files.`;
-      
-      this._addChatMessage('assistant', instructions);
-      
-    } catch (error) {
-      this._addChatMessage('system', `❌ Error exporting to YAML: ${error.message}`);
-    }
-  }
-
-  _getYamlFileInfo(configType) {
-    const fileMap = {
-      'automation': 'automations.yaml',
-      'script': 'scripts.yaml',
-      'scene': 'scenes.yaml',
-      'dashboard': 'ui-lovelace.yaml',
-      'lovelace': 'ui-lovelace.yaml',
-      'sensor': 'configuration.yaml',
-      'binary_sensor': 'configuration.yaml',
-      'template': 'configuration.yaml',
-      'input_boolean': 'configuration.yaml',
-      'input_number': 'configuration.yaml',
-      'input_text': 'configuration.yaml',
-      'input_select': 'configuration.yaml',
-      'input_datetime': 'configuration.yaml',
-      'helper': 'configuration.yaml'
-    };
-    
-    return fileMap[configType] || 'configuration.yaml';
-  }
-
   async _deployConfiguration(config, configType) {
     try {
       this._addChatMessage('system', `Deploying ${configType}...`);
       
-      // Prepare service data with optional label
-      const serviceData = {
-        config: config,
-        type: configType
-      };
-      
-      // Include label if one is selected
-      if (this._selectedLabelId) {
-        serviceData.label_id = this._selectedLabelId;
-      }
-      
-      // Call the deploy service
+      // Call the deploy service with conversation_id for tracking
       let result = await this._hass.callWS({
         type: 'call_service',
         domain: 'ai_config_assistant',
         service: 'deploy_config',
-        service_data: serviceData,
+        service_data: {
+          config: config,
+          type: configType,
+          conversation_id: this._currentConversationId  // Add this for automatic tracking
+        },
         return_response: true
       });
       
@@ -4979,7 +4039,16 @@ Please share this information when reporting issues.`;
         result = result.response;
       }
       
+      console.log('Deployment result:', result);
+      console.log('Current conversation ID:', this._currentConversationId);
+      
       if (result && result.success) {
+        // Track the deployment in the conversation
+        if (this._currentConversationId && result.entity_id) {
+          console.log('Calling _trackDeploymentInConversation with:', result.entity_id, configType);
+          await this._trackDeploymentInConversation(result.entity_id, configType, config);
+        }
+        
         // Create success message with link based on type
         let successMessage = `✅ ${configType} deployed successfully!`;
         
@@ -5023,54 +4092,6 @@ Please share this information when reporting issues.`;
           
           this._addChatMessage('system', successMessage);
           this._addChatMessage('assistant', `Your scene has been created!\n\n🎬 **Scene ID:** ${result.id}\n\n🔗 **[Edit Scene in UI](${sceneUrl})** - Click to view or modify your new scene`);
-        } else if (['sensor', 'binary_sensor', 'template'].includes(configType) && result.entity_id) {
-          // Template sensor deployed
-          this._addChatMessage('system', '⚠️ Template sensor saved to file');
-          
-          let instructions = `Your template sensor configuration has been saved to \`template_sensors.yaml\`\n\n`;
-          instructions += `🌡️ **Entity ID (when activated):** ${result.entity_id}\n\n`;
-          instructions += `⚠️ **IMPORTANT - Manual Setup Required:**\n\n`;
-          instructions += `The sensor has been written to \`template_sensors.yaml\` in your config directory, but it won't be active until you:\n\n`;
-          instructions += `**Step 1: Add to configuration.yaml**\n`;
-          instructions += `Add this line to your \`configuration.yaml\` file:\n`;
-          instructions += `\`\`\`yaml\ntemplate: !include template_sensors.yaml\n\`\`\`\n\n`;
-          instructions += `**Step 2: Check Configuration**\n`;
-          instructions += `1. Go to [Developer Tools → YAML](/developer-tools/yaml)\n`;
-          instructions += `2. Click **"Check Configuration"**\n`;
-          instructions += `3. Fix any errors if shown\n\n`;
-          instructions += `**Step 3: Restart Home Assistant**\n`;
-          instructions += `1. Go to [Settings → System](/config/system)\n`;
-          instructions += `2. Click **"Restart"** under "Home Assistant Core"\n`;
-          instructions += `3. Click **"Restart Home Assistant"**\n\n`;
-          instructions += `After completing these steps, your sensor will be available at: **${result.entity_id}**\n\n`;
-          instructions += `💡 **Recommendation:** For template sensors, using "Export to YAML File" might be easier as you can add the configuration directly to your existing files.`;
-          
-          this._addChatMessage('assistant', instructions);
-        } else if (configType.includes('input_') || configType === 'helper') {
-          // Helper deployed
-          if (result.success) {
-            this._addChatMessage('system', successMessage);
-            
-            let helperMessage = `Your helper has been created!\n\n🎛️ **Entity ID:** ${result.entity_id}\n`;
-            helperMessage += `**Type:** ${result.type}\n\n`;
-            helperMessage += `You can now use this helper in your automations and scripts.\n\n`;
-            helperMessage += `To view or edit: Go to [Settings → Devices & Services → Helpers](/config/helpers)`;
-            
-            this._addChatMessage('assistant', helperMessage);
-          } else if (result.manual_config) {
-            // Helper needs manual configuration
-            this._addChatMessage('system', '⚠️ Helper creation requires manual configuration');
-            
-            let manualMessage = `To create this helper, you need to add the following to your configuration.yaml:\n\n`;
-            manualMessage += '```yaml\n' + result.manual_config + '\n```\n\n';
-            manualMessage += `After adding this configuration:\n`;
-            manualMessage += `1. Save the file\n`;
-            manualMessage += `2. Go to [Developer Tools → YAML](/developer-tools/yaml)\n`;
-            manualMessage += `3. Click **"Check Configuration"**\n`;
-            manualMessage += `4. If valid, click **"Restart"** to apply changes`;
-            
-            this._addChatMessage('assistant', manualMessage);
-          }
         } else {
           this._addChatMessage('system', successMessage);
         }
@@ -5149,338 +4170,570 @@ Please share this information when reporting issues.`;
     }
   }
 
+  // ========================================
   // Conversation Management Methods
-  async _loadConversationHistory() {
+  // ========================================
+
+  async _initializeConversationManager() {
     try {
-      // Try to load from server first
-      const response = await this.hass.connection.sendMessagePromise({
+      // Load conversations from server
+      await this._loadConversations();
+      
+      // Create a new conversation if none exist
+      if (!this._conversations || this._conversations.length === 0) {
+        this._startNewConversation();
+      } else {
+        // Load the most recent conversation
+        this._loadConversation(this._conversations[0].id);
+      }
+    } catch (error) {
+      console.error('Failed to initialize conversation manager:', error);
+      // Create a new conversation as fallback
+      this._startNewConversation();
+    }
+  }
+
+  async _loadConversations() {
+    try {
+      const response = await this._hass.callWS({
         type: 'ai_config_assistant/load_conversations'
       });
       
-      if (response && response.conversations) {
-        // Check if we have local conversations to migrate
-        const localStored = localStorage.getItem('ai-config-conversations');
-        if (localStored) {
-          const localConversations = JSON.parse(localStored);
-          if (localConversations && localConversations.length > 0) {
-            // Migrate local conversations to server
-            await this._migrateLocalConversations(localConversations);
-            // Clear local storage after successful migration
-            localStorage.removeItem('ai-config-conversations');
-          }
-        }
-        
-        return response.conversations || [];
-      }
-      
-      // Fallback to localStorage if server storage fails
-      const stored = localStorage.getItem('ai-config-conversations');
-      return stored ? JSON.parse(stored) : [];
+      this._conversations = response.conversations || [];
+      this._renderConversationsList();
     } catch (error) {
-      console.error('Failed to load conversation history:', error);
-      // Fallback to localStorage
-      try {
-        const stored = localStorage.getItem('ai-config-conversations');
-        return stored ? JSON.parse(stored) : [];
-      } catch (localError) {
-        console.error('Failed to load from localStorage:', localError);
-        return [];
-      }
+      console.error('Failed to load conversations:', error);
+      this._conversations = [];
     }
   }
 
-  async _migrateLocalConversations(localConversations) {
-    try {
-      const response = await this.hass.connection.sendMessagePromise({
-        type: 'ai_config_assistant/migrate_conversations',
-        conversations: localConversations
-      });
-      
-      if (response && response.conversations) {
-        this._conversationHistory = response.conversations;
-        console.log(`Successfully migrated ${localConversations.length} conversations to server storage`);
-      }
-    } catch (error) {
-      console.error('Failed to migrate conversations:', error);
-    }
-  }
+  _renderConversationsList() {
+    const root = this.shadowRoot;
+    const conversationsList = root.getElementById('conversations-list');
+    if (!conversationsList) return;
 
-  async _saveConversationHistory() {
-    // Don't save during initial load or when loading from history
-    if (this._isLoadingFromHistory || !this._currentConversationId) {
+    if (!this._conversations || this._conversations.length === 0) {
+      conversationsList.innerHTML = `
+        <div style="padding: 20px; text-align: center; color: var(--secondary-text-color); font-size: 14px;">
+          No conversations yet.<br>
+          Start a new conversation to get started!
+        </div>
+      `;
       return;
     }
-    
-    // Find the current conversation in the history
-    const currentConv = this._conversationHistory.find(c => c.id === this._currentConversationId);
-    if (!currentConv) {
-      return;
-    }
-    
-    try {
-      // Save to server
-      await this.hass.connection.sendMessagePromise({
-        type: 'ai_config_assistant/save_conversation',
-        conversation: currentConv
-      });
-    } catch (error) {
-      console.error('Failed to save conversation to server:', error);
-      // Fallback to localStorage if server save fails
-      try {
-        localStorage.setItem('ai-config-conversations', JSON.stringify(this._conversationHistory));
-      } catch (localError) {
-        console.error('Failed to save to localStorage:', localError);
+
+    conversationsList.innerHTML = this._conversations.map(conv => {
+      const deployments = conv.deployments || [];
+      const activeDeployments = deployments.filter(d => d.status === 'active').length;
+      const disabledDeployments = deployments.filter(d => d.status === 'disabled').length;
+      const errorDeployments = deployments.filter(d => d.status === 'error').length;
+      const deletedDeployments = deployments.filter(d => d.status === 'deleted').length;
+      
+      const isArchived = conv.archived;
+      const hasDeployments = deployments.length > 0;
+      
+      let deploymentIndicators = '';
+      if (hasDeployments) {
+        deploymentIndicators = `
+          <div class="conversation-deployments">
+            ${activeDeployments > 0 ? `<span class="deployment-indicator active"></span>${activeDeployments}` : ''}
+            ${disabledDeployments > 0 ? `<span class="deployment-indicator disabled"></span>${disabledDeployments}` : ''}
+            ${errorDeployments > 0 ? `<span class="deployment-indicator error"></span>${errorDeployments}` : ''}
+            ${deletedDeployments > 0 ? `<span class="deployment-indicator deleted"></span>${deletedDeployments}` : ''}
+            <span class="deployment-count">${deployments.length}</span>
+          </div>
+        `;
       }
-    }
+      
+      return `
+        <button class="conversation-item ${conv.id === this._currentConversationId ? 'active' : ''} ${isArchived ? 'archived' : ''}" 
+                data-conversation-id="${conv.id}">
+          <div class="conversation-content">
+            <div class="conversation-title">${conv.title || 'New Conversation'}</div>
+            <div class="conversation-preview">${conv.preview || 'No messages yet'}</div>
+            ${deploymentIndicators}
+          </div>
+          <div class="conversation-actions">
+            <div class="conversation-date">${this._formatDate(conv.timestamp)}</div>
+            <button class="conversation-delete-btn" data-conversation-id="${conv.id}" title="Delete conversation">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="m18 6-12 12"></path>
+                <path d="m6 6 12 12"></path>
+              </svg>
+            </button>
+          </div>
+        </button>
+      `;
+    }).join('');
+
+    // Add event listeners
+    conversationsList.querySelectorAll('.conversation-item').forEach(item => {
+      item.addEventListener('click', (e) => {
+        if (e.target.closest('.conversation-delete-btn')) return;
+        const conversationId = item.dataset.conversationId;
+        this._loadConversation(conversationId);
+      });
+    });
+
+    conversationsList.querySelectorAll('.conversation-delete-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const conversationId = btn.dataset.conversationId;
+        this._deleteConversation(conversationId);
+      });
+    });
   }
 
   _generateConversationId() {
     return 'conv_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
   }
 
-  _saveCurrentConversation() {
-    if (this._conversationMessages.length === 0) {
-      return;
-    }
-
-    const conversationId = this._currentConversationId || this._generateConversationId();
+  _startNewConversation() {
+    const conversationId = this._generateConversationId();
     
-    // Get first user message as title
-    const firstUserMessage = this._conversationMessages.find(msg => msg.type === 'user');
-    const title = firstUserMessage ? 
-      firstUserMessage.content.substring(0, 50) + (firstUserMessage.content.length > 50 ? '...' : '') :
-      'New Conversation';
-
-    // Get preview from last message
-    const lastMessage = this._conversationMessages[this._conversationMessages.length - 1];
-    const preview = lastMessage ? 
-      (lastMessage.content || '').substring(0, 80) + ((lastMessage.content || '').length > 80 ? '...' : '') :
-      'Empty conversation';
-
-    const conversationData = {
+    // Create new conversation
+    const newConversation = {
       id: conversationId,
-      title: title,
-      preview: preview,
-      messages: [...this._conversationMessages],
-      context: {...this._conversationContext},
-      lastUpdated: Date.now(),
-      created: this._currentConversationId ? 
-        (this._conversationHistory.find(c => c.id === conversationId)?.created || Date.now()) :
-        Date.now()
+      title: 'New Conversation',
+      messages: [],
+      timestamp: Date.now(),
+      preview: 'No messages yet'
     };
 
-    // Update or add conversation
-    const existingIndex = this._conversationHistory.findIndex(c => c.id === conversationId);
-    if (existingIndex >= 0) {
-      this._conversationHistory[existingIndex] = conversationData;
-    } else {
-      this._conversationHistory.unshift(conversationData);
-    }
-
-    // Keep only last 50 conversations
-    if (this._conversationHistory.length > 50) {
-      this._conversationHistory = this._conversationHistory.slice(0, 50);
-    }
-
-    this._currentConversationId = conversationId;
-    this._saveConversationHistory();
-    this._renderConversationList();
-  }
-
-  _startNewConversation() {
-    // Save current conversation if it has messages
-    this._saveCurrentConversation();
+    // Add to conversations list
+    this._conversations.unshift(newConversation);
     
-    // Clear current conversation
+    // Set as current
+    this._currentConversationId = conversationId;
     this._conversationMessages = [];
-    this._conversationContext = {};
-    this._currentConversationId = null;
     
-    // Clear chat interface
-    const messagesContainer = this.shadowRoot.getElementById('chat-messages');
-    messagesContainer.innerHTML = '';
+    // Clear chat
+    this._clearChatMessages();
     
-    // Clear input
-    const chatInput = this.shadowRoot.getElementById('chat-input');
-    chatInput.value = '';
-    
-    // Update conversation list
-    this._renderConversationList();
+    // Update UI
+    this._renderConversationsList();
+    this._renderDeploymentPanel();
   }
 
-  _loadConversation(conversationId) {
-    const conversation = this._conversationHistory.find(c => c.id === conversationId);
-    if (!conversation) {
-      return;
-    }
+  async _loadConversation(conversationId) {
+    const conversation = this._conversations.find(c => c.id === conversationId);
+    if (!conversation) return;
 
-    // Save current conversation if it has changes
-    if (this._conversationMessages.length > 0) {
-      this._saveCurrentConversation();
-    }
-
-    // Load the selected conversation
-    this._conversationMessages = [...conversation.messages];
-    this._conversationContext = {...conversation.context};
     this._currentConversationId = conversationId;
-
-    // Clear and repopulate chat interface
-    const messagesContainer = this.shadowRoot.getElementById('chat-messages');
-    messagesContainer.innerHTML = '';
-
-    // Re-render all messages (set flag to prevent saving duplicates)
-    this._isLoadingFromHistory = true;
+    this._conversationMessages = conversation.messages || [];
+    
+    // Clear and reload chat messages
+    this._clearChatMessages();
+    
+    // Display messages
     this._conversationMessages.forEach(message => {
-      this._addChatMessage(message.type, message.content, message.extras);
+      this._addChatMessage(message.role, message.content, {}, false);
     });
-    this._isLoadingFromHistory = false;
+    
+    // Update UI
+    this._renderConversationsList();
+    this._renderDeploymentPanel();
+  }
 
-    // Update conversation list to show active conversation
-    this._renderConversationList();
+  async _saveCurrentConversation() {
+    if (!this._currentConversationId) return;
 
-    // Scroll to bottom
-    setTimeout(() => {
-      messagesContainer.scrollTop = messagesContainer.scrollHeight;
-    }, 100);
+    const conversation = this._conversations.find(c => c.id === this._currentConversationId);
+    if (!conversation) return;
+
+    // Update conversation data
+    conversation.messages = [...this._conversationMessages];
+    conversation.timestamp = Date.now();
+    
+    // Generate title and preview from first user message
+    const firstUserMessage = this._conversationMessages.find(m => m.role === 'user');
+    if (firstUserMessage && !conversation.title || conversation.title === 'New Conversation') {
+      conversation.title = firstUserMessage.content.slice(0, 50);
+      if (firstUserMessage.content.length > 50) {
+        conversation.title += '...';
+      }
+    }
+    
+    const lastMessage = this._conversationMessages[this._conversationMessages.length - 1];
+    if (lastMessage) {
+      conversation.preview = lastMessage.content.slice(0, 100);
+      if (lastMessage.content.length > 100) {
+        conversation.preview += '...';
+      }
+    }
+
+    // Save to server
+    try {
+      await this._hass.callWS({
+        type: 'ai_config_assistant/save_conversation',
+        conversation: conversation
+      });
+    } catch (error) {
+      console.error('Failed to save conversation:', error);
+    }
   }
 
   async _deleteConversation(conversationId) {
+    if (!confirm('Are you sure you want to delete this conversation?')) return;
+
     try {
       // Delete from server
-      await this.hass.connection.sendMessagePromise({
+      await this._hass.callWS({
         type: 'ai_config_assistant/delete_conversation',
         conversation_id: conversationId
       });
-      
-      // Remove from local cache
-      this._conversationHistory = this._conversationHistory.filter(c => c.id !== conversationId);
-      this._renderConversationList();
 
-      // If deleting the current conversation, start a new one
+      // Remove from local list
+      this._conversations = this._conversations.filter(c => c.id !== conversationId);
+
+      // If this was the current conversation, start a new one
       if (this._currentConversationId === conversationId) {
-        this._startNewConversation();
+        if (this._conversations.length > 0) {
+          this._loadConversation(this._conversations[0].id);
+        } else {
+          this._startNewConversation();
+        }
       }
+
+      // Update UI
+      this._renderConversationsList();
     } catch (error) {
       console.error('Failed to delete conversation:', error);
-      // Still remove from local cache even if server delete fails
-      this._conversationHistory = this._conversationHistory.filter(c => c.id !== conversationId);
-      this._renderConversationList();
-      
-      if (this._currentConversationId === conversationId) {
-        this._startNewConversation();
-      }
     }
   }
 
-  _renderConversationList() {
-    const listContainer = this.shadowRoot.getElementById('conversations-list');
+  _clearChatMessages() {
+    const root = this.shadowRoot;
+    const chatMessages = root.getElementById('chat-messages');
+    if (chatMessages) {
+      chatMessages.innerHTML = '';
+    }
+  }
+
+  _formatDate(timestamp) {
+    if (!timestamp) return '';
     
-    if (this._conversationHistory.length === 0) {
-      listContainer.innerHTML = `
-        <div style="text-align: center; color: var(--secondary-text-color); margin-top: 24px;">
-          <p>No conversations yet</p>
-          <p style="font-size: 12px;">Start a new conversation to see it here</p>
-        </div>
-      `;
+    const now = new Date();
+    const date = new Date(timestamp);
+    const diff = now - date;
+    
+    // Less than 1 minute
+    if (diff < 60000) {
+      return 'now';
+    }
+    
+    // Less than 1 hour
+    if (diff < 3600000) {
+      const minutes = Math.floor(diff / 60000);
+      return `${minutes}m`;
+    }
+    
+    // Less than 24 hours
+    if (diff < 86400000) {
+      const hours = Math.floor(diff / 3600000);
+      return `${hours}h`;
+    }
+    
+    // Less than 7 days
+    if (diff < 604800000) {
+      const days = Math.floor(diff / 86400000);
+      return `${days}d`;
+    }
+    
+    // Older than 7 days
+    return date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric' 
+    });
+  }
+
+  async _renderDeploymentPanel() {
+    const root = this.shadowRoot;
+    const deploymentPanel = root.getElementById('deployment-panel');
+    if (!deploymentPanel) return;
+
+    if (!this._currentConversationId) {
+      deploymentPanel.style.display = 'none';
       return;
     }
 
-    listContainer.innerHTML = this._conversationHistory.map(conversation => {
-      const date = new Date(conversation.lastUpdated);
-      const dateStr = date.toLocaleDateString();
-      const isActive = conversation.id === this._currentConversationId;
+    const conversation = this._conversations.find(c => c.id === this._currentConversationId);
+    const deployments = conversation?.deployments || [];
 
-      return `
-        <div class="conversation-item ${isActive ? 'active' : ''}" data-conversation-id="${conversation.id}">
-          <div class="conversation-title">${this._escapeHtml(conversation.title)}</div>
-          <div class="conversation-preview">${this._escapeHtml(conversation.preview)}</div>
-          <div style="display: flex; justify-content: space-between; align-items: center;">
-            <div class="conversation-date">${dateStr}</div>
-            <div class="conversation-actions">
-              <button class="conversation-action-btn delete-conversation" data-conversation-id="${conversation.id}" title="Delete">
-                🗑️
-              </button>
-            </div>
-          </div>
-        </div>
-      `;
-    }).join('');
+    if (deployments.length === 0) {
+      deploymentPanel.style.display = 'none';
+      return;
+    }
 
-    // Attach event listeners
-    this._attachConversationListeners();
+    deploymentPanel.style.display = 'block';
+    deploymentPanel.innerHTML = `
+      <h5>🚀 Deployed Configurations</h5>
+      ${deployments.map(deployment => this._renderDeploymentItem(deployment)).join('')}
+      <div style="margin-top: 8px; text-align: center;">
+        <button class="deployment-action-btn" id="link-entity-btn">
+          + Link Entity
+        </button>
+      </div>
+    `;
+
+    // Add event listeners for deployment actions
+    this._attachDeploymentListeners();
   }
 
-  _attachConversationListeners() {
+  _renderDeploymentItem(deployment) {
+    const statusText = this._getDeploymentStatusText(deployment);
+    const entityName = deployment.entity_id.replace(/^[^.]+\./, '').replace(/_/g, ' ');
+    
+    return `
+      <div class="deployment-item" data-entity-id="${deployment.entity_id}">
+        <div class="deployment-info">
+          <div class="deployment-entity">
+            <span class="deployment-indicator ${deployment.status}"></span>
+            <a href="#" class="entity-link" data-entity-id="${deployment.entity_id}">
+              ${entityName}
+            </a>
+          </div>
+          <div class="deployment-status">${statusText}</div>
+        </div>
+        <div class="deployment-actions">
+          <button class="deployment-action-btn edit" data-action="edit" data-entity-id="${deployment.entity_id}">
+            ⚙️ Edit
+          </button>
+          <button class="deployment-action-btn version" data-action="versions" data-entity-id="${deployment.entity_id}">
+            📦 v${deployment.version || 1}
+          </button>
+          <button class="deployment-action-btn delete" data-action="unlink" data-entity-id="${deployment.entity_id}">
+            🗑️ Unlink
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
+  _getDeploymentStatusText(deployment) {
+    switch (deployment.status) {
+      case 'active':
+        return 'Active • Working properly';
+      case 'disabled':
+        return 'Disabled • Click to enable';
+      case 'error':
+        return 'Error • Needs attention';
+      case 'deleted':
+        return 'Deleted • Entity removed';
+      default:
+        return 'Unknown status';
+    }
+  }
+
+  async _attachDeploymentListeners() {
     const root = this.shadowRoot;
     
-    // Conversation item click
-    root.querySelectorAll('.conversation-item').forEach(item => {
-      if (!item.hasClickListener) {
-        item.hasClickListener = true;
-        item.addEventListener('click', (e) => {
-          // Don't load conversation if clicking on action buttons
-          if (e.target.classList.contains('conversation-action-btn')) {
-            return;
-          }
-          const conversationId = item.dataset.conversationId;
-          this._loadConversation(conversationId);
-        });
-      }
-    });
-
-    // Delete conversation buttons
-    root.querySelectorAll('.delete-conversation').forEach(btn => {
-      if (!btn.hasClickListener) {
-        btn.hasClickListener = true;
-        btn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          const conversationId = btn.dataset.conversationId;
-          if (confirm('Are you sure you want to delete this conversation?')) {
-            this._deleteConversation(conversationId);
-          }
-        });
-      }
-    });
-
-    // Toggle sidebar buttons
-    const toggleBtn = root.getElementById('conversations-toggle');
-    const closeBtn = root.getElementById('conversations-close');
-    const newConvBtn = root.getElementById('new-conversation-btn');
-
-    if (toggleBtn && !toggleBtn.hasClickListener) {
-      toggleBtn.hasClickListener = true;
-      toggleBtn.addEventListener('click', () => {
-        this._toggleConversationSidebar();
-      });
+    // Link entity button
+    const linkEntityBtn = root.getElementById('link-entity-btn');
+    if (linkEntityBtn) {
+      linkEntityBtn.addEventListener('click', () => this._showLinkEntityDialog());
     }
 
-    if (closeBtn && !closeBtn.hasClickListener) {
-      closeBtn.hasClickListener = true;
-      closeBtn.addEventListener('click', () => {
-        this._toggleConversationSidebar();
+    // Entity links - clickable entity names
+    root.querySelectorAll('.entity-link').forEach(link => {
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const entityId = link.dataset.entityId;
+        this._showEntityDialog(entityId);
       });
-    }
+    });
 
-    if (newConvBtn && !newConvBtn.hasClickListener) {
-      newConvBtn.hasClickListener = true;
-      newConvBtn.addEventListener('click', () => {
-        this._startNewConversation();
+    // Deployment action buttons
+    root.querySelectorAll('.deployment-action-btn[data-action]').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const action = btn.dataset.action;
+        const entityId = btn.dataset.entityId;
+        await this._handleDeploymentAction(action, entityId);
       });
+    });
+  }
+
+  async _handleDeploymentAction(action, entityId) {
+    switch (action) {
+      case 'edit':
+        this._openEntityEditor(entityId);
+        break;
+      case 'versions':
+        await this._showVersionHistory(entityId);
+        break;
+      case 'unlink':
+        await this._unlinkDeployment(entityId);
+        break;
     }
   }
 
-  _toggleConversationSidebar() {
-    const sidebar = this.shadowRoot.getElementById('conversations-sidebar');
-    const isCollapsed = sidebar.classList.contains('collapsed');
+  _showEntityDialog(entityId) {
+    // Use Home Assistant's built-in more-info dialog
+    const event = new CustomEvent('hass-more-info', {
+      detail: { entityId },
+      bubbles: true,
+      composed: true
+    });
+    this.dispatchEvent(event);
+  }
+
+  _openEntityEditor(entityId) {
+    // Open Home Assistant's native entity editor
+    const domain = entityId.split('.')[0];
+    let editorPath;
     
-    if (isCollapsed) {
-      sidebar.classList.remove('collapsed');
-      this._conversationSidebarOpen = true;
-      // Load conversations when opening sidebar
-      this._renderConversationList();
-    } else {
-      sidebar.classList.add('collapsed');
-      this._conversationSidebarOpen = false;
+    switch (domain) {
+      case 'automation':
+        editorPath = `/config/automation/edit/${entityId}`;
+        break;
+      case 'script':
+        editorPath = `/config/script/edit/${entityId}`;
+        break;
+      case 'scene':
+        editorPath = `/config/scene/edit/${entityId}`;
+        break;
+      default:
+        alert('Entity editor not available for this type');
+        return;
+    }
+    
+    window.open(editorPath, '_blank');
+  }
+
+  async _showVersionHistory(entityId) {
+    try {
+      const response = await this._hass.callWS({
+        type: 'ai_config_assistant/get_version_history',
+        conversation_id: this._currentConversationId,
+        entity_id: entityId
+      });
+      
+      const versions = response.versions || [];
+      const versionList = versions.map(v => 
+        `<li>${v.is_current ? '<strong>' : ''}v${v.version} - ${v.note}${v.is_current ? ' (Current)</strong>' : ''}</li>`
+      ).join('');
+      
+      const message = `
+        <h4>Version History for ${entityId}</h4>
+        <ul>${versionList}</ul>
+      `;
+      
+      // For now, show in alert - in production, you'd want a proper modal
+      alert(message.replace(/<[^>]*>/g, ''));
+      
+    } catch (error) {
+      console.error('Failed to load version history:', error);
+      alert('Failed to load version history');
+    }
+  }
+
+  async _unlinkDeployment(entityId) {
+    if (!confirm(`Unlink ${entityId} from this conversation?`)) return;
+    
+    try {
+      await this._hass.callWS({
+        type: 'ai_config_assistant/unlink_deployment',
+        conversation_id: this._currentConversationId,
+        entity_id: entityId
+      });
+      
+      // Remove from local conversation data
+      const conversation = this._conversations.find(c => c.id === this._currentConversationId);
+      if (conversation) {
+        conversation.deployments = conversation.deployments.filter(d => d.entity_id !== entityId);
+      }
+      
+      // Update UI
+      this._renderDeploymentPanel();
+      this._renderConversationsList();
+      
+    } catch (error) {
+      console.error('Failed to unlink deployment:', error);
+      alert('Failed to unlink deployment');
+    }
+  }
+
+  _showLinkEntityDialog() {
+    const entityId = prompt('Enter entity ID to link (e.g., automation.my_automation):');
+    if (!entityId) return;
+    
+    const configType = entityId.split('.')[0];
+    const configYaml = prompt('Enter the YAML configuration (optional):') || '';
+    
+    this._linkEntityManually(entityId, configType, configYaml);
+  }
+
+  async _linkEntityManually(entityId, configType, configYaml) {
+    try {
+      await this._hass.callWS({
+        type: 'ai_config_assistant/link_deployment',
+        conversation_id: this._currentConversationId,
+        entity_id: entityId,
+        config_type: configType,
+        config_yaml: configYaml,
+        deployment_method: 'manual'
+      });
+      
+      // Reload conversation data
+      await this._loadConversations();
+      this._loadConversation(this._currentConversationId);
+      
+    } catch (error) {
+      console.error('Failed to link entity:', error);
+      alert('Failed to link entity: ' + error.message);
+    }
+  }
+
+  async _trackDeploymentInConversation(entityId, configType, configYaml) {
+    console.log('Tracking deployment:', { entityId, configType, conversationId: this._currentConversationId });
+    try {
+      // Link the deployment to the current conversation
+      const response = await this._hass.callWS({
+        type: 'ai_config_assistant/link_deployment',
+        conversation_id: this._currentConversationId,
+        entity_id: entityId,
+        config_type: configType,
+        config_yaml: configYaml,
+        deployment_method: 'direct'
+      });
+      console.log('Deployment tracking response:', response);
+      
+      // Update local conversation data
+      const conversation = this._conversations.find(c => c.id === this._currentConversationId);
+      if (conversation) {
+        if (!conversation.deployments) {
+          conversation.deployments = [];
+        }
+        
+        // Add the new deployment
+        conversation.deployments.push({
+          entity_id: entityId,
+          type: configType,
+          deployed_at: new Date().toISOString(),
+          deployment_method: 'direct',
+          config_yaml: configYaml,
+          status: 'active',
+          version: 1
+        });
+        
+        // Save the updated conversation
+        await this._saveCurrentConversation();
+        
+        // Reload conversations to ensure we have the latest data from server
+        await this._loadConversations();
+        
+        // Update UI
+        this._renderDeploymentPanel();
+        this._renderConversationsList();
+      }
+      
+      console.log(`Deployment tracked: ${entityId} -> ${this._currentConversationId}`);
+      
+    } catch (error) {
+      console.error('Failed to track deployment:', error);
+      // Don't show an alert as this is a background operation
     }
   }
   });

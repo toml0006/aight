@@ -81,7 +81,14 @@ class EntityManager:
         self._search_index.clear()
 
         # Process all entities
-        for state in self.hass.states.async_all():
+        all_states = self.hass.states.async_all()
+        _LOGGER.info("Total states in Home Assistant: %d", len(all_states))
+        
+        # Log all light entities found
+        light_entities = [s.entity_id for s in all_states if s.entity_id.startswith('light.')]
+        _LOGGER.info("Light entities found in states: %s", light_entities)
+        
+        for state in all_states:
             entity_id = state.entity_id
             domain = entity_id.split('.')[0]
             
@@ -275,8 +282,30 @@ class EntityManager:
         entity_ids = self._entities_by_domain.get(domain, [])
         return [self._entities_cache[eid] for eid in entity_ids if eid in self._entities_cache]
 
+    def get_all_entities(self) -> Dict[str, EntityInfo]:
+        """Get all entities with their current states."""
+        return self._entities_cache.copy()
+    
+    def get_all_areas(self) -> List[str]:
+        """Get all area names in the system."""
+        area_registry = async_get_area_registry(self.hass)
+        return [area.name for area in area_registry.areas.values()]
+    
     async def get_entity_context(self, entity_ids: List[str]) -> Dict[str, Any]:
         """Get context information for a list of entities."""
+        _LOGGER.info("Getting context for %d entity IDs", len(entity_ids))
+        _LOGGER.info("Entity IDs requested: %s", entity_ids[:10] if entity_ids else [])
+        _LOGGER.info("Entities in cache: %d", len(self._entities_cache))
+        _LOGGER.info("Sample cache keys: %s", list(self._entities_cache.keys())[:10])
+        
+        # Refresh cache if needed to ensure we have current entities
+        if len(entity_ids) > 0:
+            # Check if any requested entities are missing from cache
+            missing_entities = [eid for eid in entity_ids if eid not in self._entities_cache]
+            if missing_entities:
+                _LOGGER.info("Missing entities detected, refreshing cache. Missing: %s", missing_entities[:5])
+                await self._build_entity_cache()
+        
         context = {
             "entities": {},
             "areas": set(),
@@ -285,7 +314,30 @@ class EntityManager:
         }
 
         for entity_id in entity_ids:
+            # Try cache first
             entity_info = self._entities_cache.get(entity_id)
+            
+            # If not in cache, try to get directly from Home Assistant state
+            if not entity_info:
+                state = self.hass.states.get(entity_id)
+                if state:
+                    _LOGGER.info("Entity %s not in cache but found in states, adding it", entity_id)
+                    # Create a basic entity info from state
+                    entity_info = EntityInfo(
+                        entity_id=entity_id,
+                        name=state.attributes.get("friendly_name", entity_id),
+                        domain=entity_id.split('.')[0],
+                        state=state.state,
+                        attributes=dict(state.attributes),
+                        area_id=None,
+                        area_name=None,
+                        device_name=None,
+                        last_changed=state.last_changed.isoformat() if state.last_changed else None,
+                        last_updated=state.last_updated.isoformat() if state.last_updated else None,
+                    )
+                    # Add to cache for future use
+                    self._entities_cache[entity_id] = entity_info
+            
             if entity_info:
                 context["entities"][entity_id] = {
                     "name": entity_info.name,
@@ -302,6 +354,8 @@ class EntityManager:
                     "state": entity_info.state,
                     "attributes": entity_info.attributes,
                 }
+            else:
+                _LOGGER.warning("Entity ID '%s' not found in cache!", entity_id)
 
         # Convert sets to lists for JSON serialization
         context["areas"] = list(context["areas"])
@@ -505,6 +559,15 @@ class EntityManager:
             return f"Wait {action['delay']}"
         else:
             return "Unknown action"
+
+    def get_all_areas(self) -> List[str]:
+        """Get a list of all area names."""
+        area_registry = async_get_area_registry(self.hass)
+        return [area.name for area in area_registry.areas.values()]
+
+    def get_all_entities(self) -> Dict[str, EntityInfo]:
+        """Get all cached entities."""
+        return self._entities_cache
 
     async def refresh_entities(self) -> None:
         """Refresh the entity cache."""

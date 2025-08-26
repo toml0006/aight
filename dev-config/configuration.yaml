@@ -1,0 +1,49 @@
+# Home Assistant Development Configuration for Aight
+
+# Basic configuration
+default_config:
+
+# The Aight panel is registered automatically by the integration
+# No need for manual panel_custom configuration
+
+# HTTP configuration for development
+http:
+  # CORS is enabled for development
+  cors_allowed_origins:
+    - http://localhost:8123
+    - http://127.0.0.1:8123
+
+# Logger configuration with debug output for Aight
+logger:
+  default: warning
+  logs:
+    # Enable debug logging for our integration
+    custom_components.ai_config_assistant: debug
+    # Also log LLM client interactions
+    custom_components.ai_config_assistant.llm_client: debug
+    # Log API calls
+    custom_components.ai_config_assistant.api: debug
+    # Log service calls
+    custom_components.ai_config_assistant.services: debug
+    
+# Frontend themes (optional, but nice for testing)
+frontend:
+  themes: !include_dir_merge_named themes
+
+# Time zone (adjust to your location)
+homeassistant:
+  name: Aight Development
+  latitude: 40.7128
+  longitude: -74.0060
+  elevation: 10
+  unit_system: imperial
+  time_zone: America/New_York
+  currency: USD
+
+# Enable some demo platforms for testing
+demo:
+
+# Include automations for testing (will be created by Aight)
+automation: !include automations.yaml
+script: !include scripts.yaml
+scene: !include scenes.yaml

@@ -1,0 +1,28 @@
+- sensor:
+    ai_sensor_1754875554:
+      friendly_name: Ai Sensor 1754875554
+      value_template: '{{ 0 }}'
+- sensor:
+    ai_sensor_1754875622:
+      friendly_name: Ai Sensor 1754875622
+      value_template: '{{ 0 }}'
+- sensor:
+    ai_sensor_1754875896:
+      friendly_name: Ai Sensor 1754875896
+      value_template: '{{ 0 }}'
+- sensor:
+    ai_sensor_1754875912:
+      friendly_name: Ai Sensor 1754875912
+      value_template: '{{ 0 }}'
+- sensor:
+    ai_sensor_1754876509:
+      friendly_name: Ai Sensor 1754876509
+      value_template: '{{ 0 }}'
+- sensor:
+    ai_sensor_1755642066:
+      friendly_name: Ai Sensor 1755642066
+      value_template: '{{ 0 }}'
+- sensor:
+    ai_sensor_1755642123:
+      friendly_name: Ai Sensor 1755642123
+      value_template: '{{ 0 }}'

@@ -15,7 +15,11 @@
         "data": {
           "default_model": "Default Model",
           "temperature": "Temperature (0.0 - 2.0)",
-          "max_tokens": "Max Tokens (100 - 4000)"
+          "max_tokens": "Max Tokens (100 - 4000)",
+          "auto_label": "Auto-assign Label"
+        },
+        "data_description": {
+          "auto_label": "Label to automatically assign to all automations, scripts, and scenes created by this integration. Will be created with the AIGHT icon. Leave empty to disable."
         }
       }
     },
@@ -32,7 +36,11 @@
         "description": "Update your AI Configuration Assistant settings",
         "data": {
           "temperature": "Temperature (0.0 - 2.0)",
-          "max_tokens": "Max Tokens (100 - 4000)"
+          "max_tokens": "Max Tokens (100 - 4000)",
+          "auto_label": "Auto-assign Label"
+        },
+        "data_description": {
+          "auto_label": "Label to automatically assign to all automations, scripts, and scenes created by this integration. Will be created with the AIGHT icon. Leave empty to disable."
         }
       }
     }

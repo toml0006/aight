@@ -1,0 +1,5 @@
+{
+  "hooks": {
+    "on-task-complete": "osascript -e 'tell application \"System Events\" to tell process \"Cursor\" to set frontmost to true' && say -v Kate 'Task completed for the Home Assistant AI Configuration Assistant project. Well done!'"
+  }
+}

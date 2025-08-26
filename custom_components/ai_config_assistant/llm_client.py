@@ -134,6 +134,23 @@ class LLMClientManager:
             {"role": msg.role, "content": msg.content}
             for msg in messages
         ]
+        
+        # Log what we're actually sending to the LLM
+        _LOGGER.info("=" * 60)
+        _LOGGER.info("LLM REQUEST DEBUG")
+        _LOGGER.info("=" * 60)
+        _LOGGER.info("Model: %s", model)
+        _LOGGER.info("Temperature: %s", temperature)
+        _LOGGER.info("Max tokens: %s", max_tokens)
+        _LOGGER.info("Number of messages: %d", len(formatted_messages))
+        for i, msg in enumerate(formatted_messages):
+            _LOGGER.info("Message %d role: %s", i, msg["role"])
+            _LOGGER.info("Message %d content preview: %s...", i, msg["content"][:300])
+            if "DASHBOARD_PROMPT" in msg["content"] or "DO NOT TRUNCATE" in msg["content"]:
+                _LOGGER.info("✓ DASHBOARD_PROMPT template detected!")
+            elif "You are a Home Assistant configuration assistant" in msg["content"]:
+                _LOGGER.warning("⚠️ GENERIC PROMPT detected instead of specific template!")
+        _LOGGER.info("=" * 60)
 
         def _sync_completion():
             """Run the synchronous completion in a thread."""
