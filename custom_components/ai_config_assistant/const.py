@@ -38,6 +38,9 @@ SERVICE_GET_ENTITIES = "get_entities"
 SERVICE_GET_SUGGESTIONS = "get_suggestions"
 SERVICE_RELOAD = "reload"
 SERVICE_DEPLOY_CONFIG = "deploy_config"
+SERVICE_MANAGE_PROMPTS = "manage_prompts"
+SERVICE_EXPORT_PROMPTS = "export_prompts"
+SERVICE_IMPORT_PROMPTS = "import_prompts"
 
 # Configuration types
 CONFIG_TYPES = [

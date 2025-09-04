@@ -122,3 +122,104 @@ reload:
   name: Reload Integration
   description: Reload the AI Configuration Assistant integration without restarting Home Assistant
   fields: {}
+
+manage_prompts:
+  name: Manage System Prompts
+  description: Create, update, or delete custom system prompts
+  fields:
+    action:
+      name: Action
+      description: Action to perform (create, update, delete, set_active, reset_default)
+      required: true
+      selector:
+        select:
+          options:
+            - create
+            - update
+            - delete
+            - set_active
+            - reset_default
+    prompt_id:
+      name: Prompt ID
+      description: ID of the prompt (required for update, delete, set_active)
+      required: false
+      selector:
+        text:
+    config_type:
+      name: Configuration Type
+      description: Type of configuration this prompt is for
+      required: false
+      selector:
+        select:
+          options:
+            - automation
+            - script
+            - scene
+            - dashboard
+            - template
+    name:
+      name: Prompt Name
+      description: Name for the prompt (required for create)
+      required: false
+      selector:
+        text:
+    template:
+      name: Prompt Template
+      description: The system prompt template with variables
+      required: false
+      example: |
+        Create a Home Assistant {config_type} based on: {prompt}
+        
+        Available entities:
+        {entities}
+        
+        Current time: {current_time}
+      selector:
+        text:
+          multiline: true
+    description:
+      name: Description
+      description: Description of what this prompt does
+      required: false
+      selector:
+        text:
+          multiline: true
+
+export_prompts:
+  name: Export System Prompts
+  description: Export system prompts to JSON format
+  fields:
+    prompt_ids:
+      name: Prompt IDs
+      description: List of prompt IDs to export (leave empty for all custom prompts)
+      required: false
+      example: ["prompt-123", "prompt-456"]
+      selector:
+        object:
+
+import_prompts:
+  name: Import System Prompts
+  description: Import system prompts from JSON data
+  fields:
+    prompts_data:
+      name: Prompts Data
+      description: JSON data containing prompts to import
+      required: true
+      example: |
+        [
+          {
+            "name": "Custom Automation",
+            "config_type": "automation", 
+            "template": "Create automation: {prompt}...",
+            "description": "Custom prompt for automations"
+          }
+        ]
+      selector:
+        object:
+    overwrite:
+      name: Overwrite Existing
+      description: Whether to overwrite existing prompts with same ID
+      required: false
+      default: false
+      selector:
+        boolean:

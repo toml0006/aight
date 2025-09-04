@@ -19,6 +19,7 @@ from .const import (
 )
 from .llm_client import LLMClientManager, LLMMessage
 from .entity_manager import EntityManager
+from .prompt_manager import PromptManager
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -47,15 +48,18 @@ class ConfigGenerator:
         self.hass = hass
         self._llm_client: Optional[LLMClientManager] = None
         self._entity_manager: Optional[EntityManager] = None
+        self._prompt_manager: Optional[PromptManager] = None
 
     def setup(
         self, 
         llm_client: LLMClientManager, 
-        entity_manager: EntityManager
+        entity_manager: EntityManager,
+        prompt_manager: Optional[PromptManager] = None
     ) -> None:
         """Set up the configuration generator."""
         self._llm_client = llm_client
         self._entity_manager = entity_manager
+        self._prompt_manager = prompt_manager
 
     async def generate_config(
         self,
@@ -84,7 +88,7 @@ class ConfigGenerator:
             )
 
             # Select appropriate prompt template
-            system_prompt = self._get_system_prompt(config_type, generation_context)
+            system_prompt = await self._get_system_prompt(config_type, generation_context)
 
             # Generate the configuration
             response = await self._llm_client.generate_config(
@@ -205,8 +209,48 @@ class ConfigGenerator:
 
         return context
 
-    def _get_system_prompt(self, config_type: str, context: Dict[str, Any]) -> str:
+    async def _get_system_prompt(self, config_type: str, context: Dict[str, Any]) -> str:
         """Get the appropriate system prompt for the configuration type."""
+        # Try to get custom prompt first
+        template = None
+        if self._prompt_manager and self._prompt_manager.is_setup:
+            try:
+                custom_prompt = await self._prompt_manager.get_active_prompt(config_type)
+                if custom_prompt:
+                    template = custom_prompt.template
+                    _LOGGER.debug("Using custom prompt for %s: %s", config_type, custom_prompt.name)
+            except Exception as err:
+                _LOGGER.warning("Failed to get custom prompt for %s: %s", config_type, err)
+        
+        # Fallback to hardcoded defaults
+        if template is None:
+            if config_type == "automation":
+                template = AUTOMATION_PROMPT
+            elif config_type == "dashboard":
+                template = DASHBOARD_PROMPT
+            elif config_type == "script":
+                template = SCRIPT_PROMPT
+            else:
+                # Generic template
+                template = f"""
+Create a Home Assistant {config_type} configuration based on this request: {{prompt}}
+
+Available entities:
+{{entities}}
+
+Current time: {{current_time}}
+Current states: {{current_states}}
+
+Generate a complete YAML {config_type} configuration.
+Respond with valid YAML only.
+"""
+            _LOGGER.debug("Using default prompt for %s", config_type)
+        
+        # Format the template with context
+        return self._format_prompt_template(template, context)
+    
+    def _format_prompt_template(self, template: str, context: Dict[str, Any]) -> str:
+        """Format a prompt template with context data."""
         # Format entity information
         entities_info = []
         for entity_id, info in context.get("entities", {}).items():
@@ -222,34 +266,20 @@ class ConfigGenerator:
             states_info.append(f"- {entity_id}: {state_data['state']}")
         states_text = "\n".join(states_info) if states_info else "No current states available"
 
-        # Select prompt template
-        if config_type == "automation":
-            template = AUTOMATION_PROMPT
-        elif config_type == "dashboard":
-            template = DASHBOARD_PROMPT
-        elif config_type == "script":
-            template = SCRIPT_PROMPT
-        else:
-            # Generic template
-            template = f"""
-Create a Home Assistant {config_type} configuration based on this request: {{prompt}}
-
-Available entities:
-{{entities}}
-
-Current time: {{current_time}}
-Current states: {{current_states}}
-
-Generate a complete YAML {config_type} configuration.
-Respond with valid YAML only.
-"""
+        # Format areas
+        areas_text = ", ".join(context.get("areas", [])) if context.get("areas") else "No areas available"
+        
+        # Format domains
+        domains_text = ", ".join(context.get("domains", [])) if context.get("domains") else "No domains available"
 
         return template.format(
             prompt="{prompt}",  # Keep placeholder for actual formatting
             entities=entities_text,
             current_time=context.get("current_time", ""),
             current_states=states_text,
-            services=context.get("services", "")
+            services=context.get("services", ""),
+            areas=areas_text,
+            domains=domains_text
         )
 
     def _get_available_services(self) -> str:

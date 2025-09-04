@@ -19,11 +19,15 @@ from .const import (
     SERVICE_PREVIEW_CONFIG,
     SERVICE_RELOAD,
     SERVICE_DEPLOY_CONFIG,
+    SERVICE_MANAGE_PROMPTS,
+    SERVICE_EXPORT_PROMPTS,
+    SERVICE_IMPORT_PROMPTS,
     LLM_PROVIDERS,
 )
 from .llm_client import LLMClientManager
 from .config_generator import ConfigGenerator
 from .entity_manager import EntityManager
+from .prompt_manager import PromptManager
 from .api import async_register_api_views
 from .panel import async_register_panel
 
@@ -65,14 +69,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.data[DOMAIN]["llm_client"] = LLMClientManager(hass)
         hass.data[DOMAIN]["config_generator"] = ConfigGenerator(hass)
         hass.data[DOMAIN]["entity_manager"] = EntityManager(hass)
+        hass.data[DOMAIN]["prompt_manager"] = PromptManager(hass)
         
         # Initialize entity manager
         await hass.data[DOMAIN]["entity_manager"].initialize()
         
-        # Set up config generator
+        # Initialize prompt manager
+        await hass.data[DOMAIN]["prompt_manager"].async_setup()
+        
+        # Set up config generator with prompt manager
         hass.data[DOMAIN]["config_generator"].setup(
             hass.data[DOMAIN]["llm_client"],
-            hass.data[DOMAIN]["entity_manager"]
+            hass.data[DOMAIN]["entity_manager"],
+            hass.data[DOMAIN]["prompt_manager"]
         )
         
         # Register services
@@ -390,6 +399,155 @@ async def _async_register_services(hass: HomeAssistant) -> None:
                 "ai_config_assistant_reloaded",
                 {"success": False, "error": str(err)}
             )
+    
+    async def manage_prompts_service(call: ServiceCall) -> ServiceResponse:
+        """Manage system prompts."""
+        prompt_manager = hass.data[DOMAIN].get("prompt_manager")
+        if not prompt_manager:
+            return {"success": False, "error": "Prompt manager not available"}
+        
+        action = call.data.get("action")
+        
+        try:
+            if action == "create":
+                name = call.data.get("name")
+                config_type = call.data.get("config_type")
+                template = call.data.get("template")
+                description = call.data.get("description", "")
+                
+                if not all([name, config_type, template]):
+                    return {
+                        "success": False, 
+                        "error": "Missing required fields: name, config_type, template"
+                    }
+                
+                prompt = await prompt_manager.create_prompt(
+                    name=name,
+                    config_type=config_type,
+                    template=template,
+                    description=description,
+                    set_active=False
+                )
+                
+                return {
+                    "success": True,
+                    "message": f"Created prompt: {name}",
+                    "prompt_id": prompt.id
+                }
+            
+            elif action == "update":
+                prompt_id = call.data.get("prompt_id")
+                if not prompt_id:
+                    return {"success": False, "error": "Missing prompt_id"}
+                
+                prompt = await prompt_manager.update_prompt(
+                    prompt_id=prompt_id,
+                    name=call.data.get("name"),
+                    template=call.data.get("template"),
+                    description=call.data.get("description")
+                )
+                
+                return {
+                    "success": True,
+                    "message": f"Updated prompt: {prompt.name}"
+                }
+            
+            elif action == "delete":
+                prompt_id = call.data.get("prompt_id")
+                if not prompt_id:
+                    return {"success": False, "error": "Missing prompt_id"}
+                
+                success = await prompt_manager.delete_prompt(prompt_id)
+                if not success:
+                    return {"success": False, "error": "Prompt not found"}
+                
+                return {
+                    "success": True,
+                    "message": "Prompt deleted successfully"
+                }
+            
+            elif action == "set_active":
+                prompt_id = call.data.get("prompt_id")
+                config_type = call.data.get("config_type")
+                
+                if not all([prompt_id, config_type]):
+                    return {"success": False, "error": "Missing prompt_id or config_type"}
+                
+                await prompt_manager.set_active_prompt(config_type, prompt_id)
+                
+                return {
+                    "success": True,
+                    "message": f"Set active prompt for {config_type}"
+                }
+            
+            elif action == "reset_default":
+                config_type = call.data.get("config_type")
+                if not config_type:
+                    return {"success": False, "error": "Missing config_type"}
+                
+                await prompt_manager.reset_to_default(config_type)
+                
+                return {
+                    "success": True,
+                    "message": f"Reset {config_type} to default prompt"
+                }
+            
+            else:
+                return {"success": False, "error": f"Unknown action: {action}"}
+        
+        except ValueError as err:
+            return {"success": False, "error": str(err)}
+        except Exception as err:
+            _LOGGER.error("Error in manage_prompts_service: %s", err)
+            return {"success": False, "error": str(err)}
+    
+    async def export_prompts_service(call: ServiceCall) -> ServiceResponse:
+        """Export system prompts."""
+        prompt_manager = hass.data[DOMAIN].get("prompt_manager")
+        if not prompt_manager:
+            return {"success": False, "error": "Prompt manager not available"}
+        
+        try:
+            prompt_ids = call.data.get("prompt_ids")
+            prompts_data = await prompt_manager.export_prompts(prompt_ids)
+            
+            return {
+                "success": True,
+                "prompts": prompts_data,
+                "count": len(prompts_data)
+            }
+        
+        except Exception as err:
+            _LOGGER.error("Error in export_prompts_service: %s", err)
+            return {"success": False, "error": str(err)}
+    
+    async def import_prompts_service(call: ServiceCall) -> ServiceResponse:
+        """Import system prompts."""
+        prompt_manager = hass.data[DOMAIN].get("prompt_manager")
+        if not prompt_manager:
+            return {"success": False, "error": "Prompt manager not available"}
+        
+        try:
+            prompts_data = call.data.get("prompts_data", [])
+            overwrite = call.data.get("overwrite", False)
+            
+            if not prompts_data:
+                return {"success": False, "error": "No prompts data provided"}
+            
+            imported_ids = await prompt_manager.import_prompts(
+                prompts_data=prompts_data,
+                overwrite=overwrite
+            )
+            
+            return {
+                "success": True,
+                "message": f"Imported {len(imported_ids)} prompts",
+                "imported_ids": imported_ids
+            }
+        
+        except Exception as err:
+            _LOGGER.error("Error in import_prompts_service: %s", err)
+            return {"success": False, "error": str(err)}
 
     # Register services
     hass.services.async_register(
@@ -412,4 +570,19 @@ async def _async_register_services(hass: HomeAssistant) -> None:
     
     hass.services.async_register(
         DOMAIN, SERVICE_RELOAD, reload_service
+    )
+    
+    hass.services.async_register(
+        DOMAIN, SERVICE_MANAGE_PROMPTS, manage_prompts_service,
+        supports_response=SupportsResponse.OPTIONAL
+    )
+    
+    hass.services.async_register(
+        DOMAIN, SERVICE_EXPORT_PROMPTS, export_prompts_service,
+        supports_response=SupportsResponse.OPTIONAL
+    )
+    
+    hass.services.async_register(
+        DOMAIN, SERVICE_IMPORT_PROMPTS, import_prompts_service,
+        supports_response=SupportsResponse.OPTIONAL
     )
