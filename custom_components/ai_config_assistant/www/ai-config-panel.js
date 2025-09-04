@@ -868,6 +868,200 @@ if (!customElements.get('ai-config-panel')) {
           border-radius: 3px;
           font-weight: 500;
         }
+
+        /* System Prompts Styles */
+        .prompts-list {
+          margin-top: 16px;
+        }
+
+        .prompt-card {
+          background: var(--secondary-background-color);
+          border: 1px solid var(--divider-color);
+          border-radius: 8px;
+          padding: 16px;
+          margin-bottom: 12px;
+          transition: border-color 0.3s, box-shadow 0.3s;
+          cursor: pointer;
+        }
+
+        .prompt-card:hover {
+          border-color: var(--primary-color);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .prompt-card.active {
+          border-color: var(--primary-color);
+          background: rgba(var(--primary-color-rgb), 0.05);
+        }
+
+        .prompt-card.default {
+          border-left: 4px solid var(--primary-color);
+        }
+
+        .prompt-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          margin-bottom: 8px;
+        }
+
+        .prompt-title {
+          font-weight: 500;
+          font-size: 16px;
+          color: var(--primary-text-color);
+          margin: 0;
+        }
+
+        .prompt-badge {
+          background: var(--primary-color);
+          color: white;
+          padding: 2px 8px;
+          border-radius: 12px;
+          font-size: 12px;
+          font-weight: 500;
+        }
+
+        .prompt-badge.default {
+          background: var(--success-color, #4caf50);
+        }
+
+        .prompt-description {
+          color: var(--secondary-text-color);
+          font-size: 14px;
+          margin: 8px 0;
+          line-height: 1.4;
+        }
+
+        .prompt-meta {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          font-size: 12px;
+          color: var(--secondary-text-color);
+          margin-top: 12px;
+          padding-top: 12px;
+          border-top: 1px solid var(--divider-color);
+        }
+
+        .prompt-actions {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 8px;
+          margin-top: 16px;
+        }
+
+        .action-btn {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 12px 16px;
+          background: var(--secondary-background-color);
+          border: 1px solid var(--divider-color);
+          border-radius: 6px;
+          color: var(--primary-text-color);
+          text-decoration: none;
+          font-size: 14px;
+          transition: background-color 0.3s, border-color 0.3s;
+          cursor: pointer;
+        }
+
+        .action-btn:hover {
+          background: var(--primary-background-color);
+          border-color: var(--primary-color);
+        }
+
+        .action-btn.danger:hover {
+          background: var(--error-color);
+          color: white;
+          border-color: var(--error-color);
+        }
+
+        .modal {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: rgba(0, 0, 0, 0.5);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 1000;
+        }
+
+        .modal-content {
+          background: var(--card-background-color);
+          border-radius: 8px;
+          max-width: 600px;
+          width: 90vw;
+          max-height: 80vh;
+          overflow-y: auto;
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .modal-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 20px;
+          border-bottom: 1px solid var(--divider-color);
+        }
+
+        .modal-header h3 {
+          margin: 0;
+          color: var(--primary-text-color);
+        }
+
+        .close-btn {
+          background: none;
+          border: none;
+          font-size: 24px;
+          cursor: pointer;
+          color: var(--secondary-text-color);
+          padding: 0;
+          width: 30px;
+          height: 30px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .close-btn:hover {
+          color: var(--primary-text-color);
+        }
+
+        .modal-body {
+          padding: 20px;
+        }
+
+        .modal-footer {
+          display: flex;
+          justify-content: flex-end;
+          gap: 12px;
+          padding: 20px;
+          border-top: 1px solid var(--divider-color);
+        }
+
+        .help-text {
+          font-size: 12px;
+          color: var(--secondary-text-color);
+          margin-top: 8px;
+          line-height: 1.4;
+        }
+
+        .help-text code {
+          background: var(--secondary-background-color);
+          padding: 2px 4px;
+          border-radius: 3px;
+          font-family: monospace;
+          font-size: 11px;
+        }
+
+        .loading-message {
+          text-align: center;
+          padding: 40px;
+          color: var(--secondary-text-color);
+        }
       </style>
 
       <div class="container">
@@ -886,6 +1080,7 @@ if (!customElements.get('ai-config-panel')) {
           <button class="tab" data-tab="preview">Preview</button>
           <button class="tab" data-tab="debug">LLM Debug</button>
           <button class="tab" data-tab="help">Help</button>
+          <button class="tab" data-tab="prompts">System Prompts</button>
         </div>
 
         <div class="content active" id="chat">
@@ -1129,6 +1324,127 @@ if (!customElements.get('ai-config-panel')) {
             </ul>
           </div>
         </div>
+
+        <div class="content" id="prompts">
+          <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+              <h3>System Prompts</h3>
+              <button id="create-prompt-btn" class="secondary">Create New Prompt</button>
+            </div>
+            
+            <div class="input-group">
+              <label>Filter by Configuration Type</label>
+              <select id="prompt-filter-type">
+                <option value="">All Types</option>
+                <option value="automation">Automation</option>
+                <option value="script">Script</option>
+                <option value="dashboard">Dashboard</option>
+                <option value="scene">Scene</option>
+                <option value="template">Template</option>
+              </select>
+            </div>
+
+            <div id="prompts-list" class="prompts-list">
+              <div class="loading-message">Loading system prompts...</div>
+            </div>
+          </div>
+
+          <!-- Create/Edit Prompt Modal -->
+          <div id="prompt-modal" class="modal" style="display: none;">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h3 id="modal-title">Create System Prompt</h3>
+                <button id="close-modal-btn" class="close-btn">&times;</button>
+              </div>
+              
+              <div class="modal-body">
+                <div class="input-group">
+                  <label>Prompt Name <span style="color: var(--error-color);">*</span></label>
+                  <input type="text" id="prompt-name" placeholder="e.g., Custom Automation Prompt">
+                </div>
+
+                <div class="input-group">
+                  <label>Configuration Type <span style="color: var(--error-color);">*</span></label>
+                  <select id="prompt-config-type">
+                    <option value="">Select Type</option>
+                    <option value="automation">Automation</option>
+                    <option value="script">Script</option>
+                    <option value="dashboard">Dashboard</option>
+                    <option value="scene">Scene</option>
+                    <option value="template">Template</option>
+                  </select>
+                </div>
+
+                <div class="input-group">
+                  <label>Description</label>
+                  <textarea id="prompt-description" placeholder="Describe what this prompt does..."></textarea>
+                </div>
+
+                <div class="input-group">
+                  <label>System Prompt Template <span style="color: var(--error-color);">*</span></label>
+                  <textarea id="prompt-template" rows="10" placeholder="Enter your system prompt template..."></textarea>
+                  <div class="help-text">
+                    <strong>Available Variables:</strong>
+                    <code>{prompt}</code> - User's request, 
+                    <code>{entities}</code> - Available entities, 
+                    <code>{current_states}</code> - Entity states, 
+                    <code>{services}</code> - Available services, 
+                    <code>{current_time}</code> - Current timestamp,
+                    <code>{areas}</code> - Areas, 
+                    <code>{domains}</code> - Entity domains
+                  </div>
+                </div>
+
+                <div class="input-group">
+                  <button id="preview-prompt-btn" class="secondary">Preview Template</button>
+                </div>
+
+                <div id="prompt-preview" style="display: none;">
+                  <h4>Template Preview</h4>
+                  <pre id="prompt-preview-content" style="background: var(--code-editor-background-color, #1e1e1e); color: var(--code-editor-text-color, #d4d4d4); padding: 12px; border-radius: 4px; font-size: 12px; overflow-x: auto; white-space: pre-wrap;"></pre>
+                </div>
+              </div>
+
+              <div class="modal-footer">
+                <button id="cancel-prompt-btn" class="secondary">Cancel</button>
+                <button id="save-prompt-btn" class="primary">Save Prompt</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Prompt Actions Modal -->
+          <div id="prompt-actions-modal" class="modal" style="display: none;">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h3 id="actions-modal-title">Prompt Actions</h3>
+                <button id="close-actions-modal-btn" class="close-btn">&times;</button>
+              </div>
+              
+              <div class="modal-body">
+                <div class="prompt-actions">
+                  <button id="edit-prompt-action" class="action-btn">
+                    <span>✏️</span> Edit Prompt
+                  </button>
+                  <button id="preview-prompt-action" class="action-btn">
+                    <span>👁️</span> Preview Template
+                  </button>
+                  <button id="set-active-action" class="action-btn">
+                    <span>⭐</span> Set as Active
+                  </button>
+                  <button id="duplicate-prompt-action" class="action-btn">
+                    <span>📋</span> Duplicate
+                  </button>
+                  <button id="export-prompt-action" class="action-btn">
+                    <span>📤</span> Export
+                  </button>
+                  <button id="delete-prompt-action" class="action-btn danger">
+                    <span>🗑️</span> Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div id="temp-messages"></div>
@@ -1155,6 +1471,11 @@ if (!customElements.get('ai-config-panel')) {
         if (target) target.classList.add('active');
         
         this._currentTab = targetId;
+        
+        // Load prompts when switching to prompts tab
+        if (targetId === 'prompts') {
+          this._loadSystemPrompts();
+        }
       });
     });
 
@@ -1290,6 +1611,85 @@ if (!customElements.get('ai-config-panel')) {
         this._handleQuickAction(action);
       });
     });
+    
+    // System Prompts event listeners
+    this._attachPromptEventListeners();
+  }
+  
+  _attachPromptEventListeners() {
+    const root = this.shadowRoot;
+    
+    // Create new prompt button
+    const createPromptBtn = root.getElementById('create-prompt-btn');
+    if (createPromptBtn) {
+      createPromptBtn.addEventListener('click', () => this._openPromptModal());
+    }
+    
+    // Filter prompts by type
+    const filterSelect = root.getElementById('prompt-filter-type');
+    if (filterSelect) {
+      filterSelect.addEventListener('change', () => this._filterPrompts());
+    }
+    
+    // Modal close buttons
+    const closeModalBtn = root.getElementById('close-modal-btn');
+    if (closeModalBtn) {
+      closeModalBtn.addEventListener('click', () => this._closePromptModal());
+    }
+    
+    const closeActionsModalBtn = root.getElementById('close-actions-modal-btn');
+    if (closeActionsModalBtn) {
+      closeActionsModalBtn.addEventListener('click', () => this._closeActionsModal());
+    }
+    
+    // Cancel button
+    const cancelPromptBtn = root.getElementById('cancel-prompt-btn');
+    if (cancelPromptBtn) {
+      cancelPromptBtn.addEventListener('click', () => this._closePromptModal());
+    }
+    
+    // Save prompt button
+    const savePromptBtn = root.getElementById('save-prompt-btn');
+    if (savePromptBtn) {
+      savePromptBtn.addEventListener('click', () => this._savePrompt());
+    }
+    
+    // Preview prompt button
+    const previewPromptBtn = root.getElementById('preview-prompt-btn');
+    if (previewPromptBtn) {
+      previewPromptBtn.addEventListener('click', () => this._previewPrompt());
+    }
+    
+    // Prompt action buttons
+    const editPromptAction = root.getElementById('edit-prompt-action');
+    if (editPromptAction) {
+      editPromptAction.addEventListener('click', () => this._editSelectedPrompt());
+    }
+    
+    const previewPromptAction = root.getElementById('preview-prompt-action');
+    if (previewPromptAction) {
+      previewPromptAction.addEventListener('click', () => this._previewSelectedPrompt());
+    }
+    
+    const setActiveAction = root.getElementById('set-active-action');
+    if (setActiveAction) {
+      setActiveAction.addEventListener('click', () => this._setActivePrompt());
+    }
+    
+    const duplicatePromptAction = root.getElementById('duplicate-prompt-action');
+    if (duplicatePromptAction) {
+      duplicatePromptAction.addEventListener('click', () => this._duplicatePrompt());
+    }
+    
+    const exportPromptAction = root.getElementById('export-prompt-action');
+    if (exportPromptAction) {
+      exportPromptAction.addEventListener('click', () => this._exportPrompt());
+    }
+    
+    const deletePromptAction = root.getElementById('delete-prompt-action');
+    if (deletePromptAction) {
+      deletePromptAction.addEventListener('click', () => this._deletePrompt());
+    }
   }
 
   _confirmDetectedEntities() {
@@ -2769,5 +3169,471 @@ Please share this information when reporting issues.
       reloadBtn.innerHTML = '🔄 Reload';
     }
   }
+
+  // System Prompts Management Methods
+  async _loadSystemPrompts() {
+    const root = this.shadowRoot;
+    const promptsList = root.getElementById('prompts-list');
+    
+    if (!promptsList) return;
+    
+    try {
+      const response = await fetch('/api/ai_config_assistant/prompts', {
+        headers: {
+          'Authorization': `Bearer ${this._hass.auth.access_token}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      this._allPrompts = data.prompts || [];
+      this._renderPrompts(this._allPrompts);
+      
+    } catch (error) {
+      console.error('Failed to load system prompts:', error);
+      promptsList.innerHTML = `
+        <div class="loading-message" style="color: var(--error-color);">
+          Failed to load system prompts: ${error.message}
+        </div>
+      `;
+    }
+  }
+
+  _renderPrompts(prompts) {
+    const root = this.shadowRoot;
+    const promptsList = root.getElementById('prompts-list');
+    
+    if (!promptsList) return;
+    
+    if (!prompts || prompts.length === 0) {
+      promptsList.innerHTML = `
+        <div class="loading-message">
+          No system prompts found. Create your first custom prompt!
+        </div>
+      `;
+      return;
+    }
+    
+    promptsList.innerHTML = prompts.map(prompt => `
+      <div class="prompt-card ${prompt.is_default ? 'default' : ''}" data-prompt-id="${prompt.id}">
+        <div class="prompt-header">
+          <h4 class="prompt-title">${prompt.name}</h4>
+          <span class="prompt-badge ${prompt.is_default ? 'default' : ''}">${prompt.config_type}</span>
+        </div>
+        
+        <div class="prompt-description">
+          ${prompt.description || 'No description provided'}
+        </div>
+        
+        <div class="prompt-meta">
+          <span>Variables: ${(prompt.variables || []).length}</span>
+          <span>${prompt.is_default ? 'Default' : 'Custom'}</span>
+          <span>Updated: ${new Date(prompt.updated_at).toLocaleDateString()}</span>
+        </div>
+      </div>
+    `).join('');
+    
+    // Attach click listeners to prompt cards
+    promptsList.querySelectorAll('.prompt-card').forEach(card => {
+      card.addEventListener('click', () => {
+        const promptId = card.dataset.promptId;
+        this._selectPrompt(promptId);
+      });
+    });
+  }
+
+  _filterPrompts() {
+    const root = this.shadowRoot;
+    const filterType = root.getElementById('prompt-filter-type').value;
+    
+    if (!this._allPrompts) return;
+    
+    let filteredPrompts = this._allPrompts;
+    
+    if (filterType) {
+      filteredPrompts = this._allPrompts.filter(prompt => 
+        prompt.config_type === filterType
+      );
+    }
+    
+    this._renderPrompts(filteredPrompts);
+  }
+
+  _selectPrompt(promptId) {
+    this._selectedPromptId = promptId;
+    this._selectedPrompt = this._allPrompts.find(p => p.id === promptId);
+    
+    // Update UI to show selected state
+    const root = this.shadowRoot;
+    root.querySelectorAll('.prompt-card').forEach(card => {
+      card.classList.remove('active');
+    });
+    root.querySelector(`[data-prompt-id="${promptId}"]`)?.classList.add('active');
+    
+    // Show actions modal
+    this._openActionsModal();
+  }
+
+  _openPromptModal(promptData = null) {
+    const root = this.shadowRoot;
+    const modal = root.getElementById('prompt-modal');
+    const modalTitle = root.getElementById('modal-title');
+    
+    // Clear form
+    root.getElementById('prompt-name').value = promptData?.name || '';
+    root.getElementById('prompt-config-type').value = promptData?.config_type || '';
+    root.getElementById('prompt-description').value = promptData?.description || '';
+    root.getElementById('prompt-template').value = promptData?.template || '';
+    
+    // Hide preview
+    const preview = root.getElementById('prompt-preview');
+    if (preview) preview.style.display = 'none';
+    
+    // Update modal title
+    modalTitle.textContent = promptData ? 'Edit System Prompt' : 'Create System Prompt';
+    
+    // Store current prompt data for editing
+    this._editingPrompt = promptData;
+    
+    modal.style.display = 'flex';
+  }
+
+  _closePromptModal() {
+    const root = this.shadowRoot;
+    const modal = root.getElementById('prompt-modal');
+    modal.style.display = 'none';
+    this._editingPrompt = null;
+  }
+
+  _openActionsModal() {
+    const root = this.shadowRoot;
+    const modal = root.getElementById('prompt-actions-modal');
+    const title = root.getElementById('actions-modal-title');
+    
+    if (this._selectedPrompt) {
+      title.textContent = `Actions: ${this._selectedPrompt.name}`;
+      
+      // Hide delete button for default prompts
+      const deleteBtn = root.getElementById('delete-prompt-action');
+      if (deleteBtn) {
+        deleteBtn.style.display = this._selectedPrompt.is_default ? 'none' : 'flex';
+      }
+      
+      modal.style.display = 'flex';
+    }
+  }
+
+  _closeActionsModal() {
+    const root = this.shadowRoot;
+    const modal = root.getElementById('prompt-actions-modal');
+    modal.style.display = 'none';
+    this._selectedPromptId = null;
+    this._selectedPrompt = null;
+    
+    // Remove active state from cards
+    root.querySelectorAll('.prompt-card').forEach(card => {
+      card.classList.remove('active');
+    });
+  }
+
+  async _savePrompt() {
+    const root = this.shadowRoot;
+    
+    // Get form values
+    const name = root.getElementById('prompt-name').value.trim();
+    const configType = root.getElementById('prompt-config-type').value;
+    const description = root.getElementById('prompt-description').value.trim();
+    const template = root.getElementById('prompt-template').value.trim();
+    
+    // Validate required fields
+    if (!name || !configType || !template) {
+      this._showMessage('Please fill in all required fields', 'error');
+      return;
+    }
+    
+    // Validate template contains {prompt}
+    if (!template.includes('{prompt}')) {
+      this._showMessage('Template must contain the {prompt} variable', 'error');
+      return;
+    }
+    
+    const saveBtn = root.getElementById('save-prompt-btn');
+    const originalText = saveBtn.textContent;
+    saveBtn.textContent = 'Saving...';
+    saveBtn.disabled = true;
+    
+    try {
+      const url = this._editingPrompt 
+        ? `/api/ai_config_assistant/prompts/${this._editingPrompt.id}`
+        : '/api/ai_config_assistant/prompts';
+        
+      const method = this._editingPrompt ? 'PUT' : 'POST';
+      
+      const response = await fetch(url, {
+        method: method,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this._hass.auth.access_token}`
+        },
+        body: JSON.stringify({
+          name,
+          config_type: configType,
+          description,
+          template
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+      
+      this._showMessage(`Prompt ${this._editingPrompt ? 'updated' : 'created'} successfully!`, 'success');
+      this._closePromptModal();
+      await this._loadSystemPrompts(); // Reload prompts list
+      
+    } catch (error) {
+      console.error('Failed to save prompt:', error);
+      this._showMessage('Failed to save prompt: ' + error.message, 'error');
+    } finally {
+      saveBtn.textContent = originalText;
+      saveBtn.disabled = false;
+    }
+  }
+
+  async _previewPrompt() {
+    const root = this.shadowRoot;
+    const template = root.getElementById('prompt-template').value.trim();
+    
+    if (!template) {
+      this._showMessage('Please enter a template to preview', 'error');
+      return;
+    }
+    
+    try {
+      // Create a temporary prompt object for preview
+      const tempPrompt = {
+        id: 'preview',
+        template: template
+      };
+      
+      // Use the preview endpoint with sample data
+      const response = await fetch('/api/ai_config_assistant/prompts/preview/preview', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this._hass.auth.access_token}`
+        },
+        body: JSON.stringify({
+          sample_data: {
+            prompt: 'Turn on living room lights when motion detected',
+            entities: '- light.living_room (Living Room Light) - light in Living Room - Current state: off\n- binary_sensor.living_room_motion (Living Room Motion) - binary_sensor in Living Room - Current state: off',
+            current_states: '- light.living_room: off\n- binary_sensor.living_room_motion: off',
+            services: '- light.turn_on\n- light.turn_off\n- automation.trigger',
+            current_time: new Date().toISOString(),
+            areas: 'Living Room, Kitchen, Bedroom',
+            domains: 'light, binary_sensor, automation'
+          }
+        })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const previewDiv = root.getElementById('prompt-preview');
+        const previewContent = root.getElementById('prompt-preview-content');
+        
+        previewContent.textContent = data.preview;
+        previewDiv.style.display = 'block';
+      } else {
+        // Fallback: simple template replacement
+        const sampleData = {
+          prompt: 'Turn on living room lights when motion detected',
+          entities: '- light.living_room (Living Room Light) - light in Living Room - Current state: off\n- binary_sensor.living_room_motion (Living Room Motion) - binary_sensor in Living Room - Current state: off',
+          current_states: '- light.living_room: off\n- binary_sensor.living_room_motion: off',
+          services: '- light.turn_on\n- light.turn_off\n- automation.trigger',
+          current_time: new Date().toISOString(),
+          areas: 'Living Room, Kitchen, Bedroom',
+          domains: 'light, binary_sensor, automation'
+        };
+        
+        let preview = template;
+        Object.keys(sampleData).forEach(key => {
+          preview = preview.replace(new RegExp(`{${key}}`, 'g'), sampleData[key]);
+        });
+        
+        const previewDiv = root.getElementById('prompt-preview');
+        const previewContent = root.getElementById('prompt-preview-content');
+        
+        previewContent.textContent = preview;
+        previewDiv.style.display = 'block';
+      }
+      
+    } catch (error) {
+      console.error('Failed to preview prompt:', error);
+      this._showMessage('Failed to preview prompt: ' + error.message, 'error');
+    }
+  }
+
+  _editSelectedPrompt() {
+    if (this._selectedPrompt) {
+      this._closeActionsModal();
+      this._openPromptModal(this._selectedPrompt);
+    }
+  }
+
+  async _previewSelectedPrompt() {
+    if (!this._selectedPrompt) return;
+    
+    try {
+      const response = await fetch(`/api/ai_config_assistant/prompts/${this._selectedPrompt.id}/preview`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this._hass.auth.access_token}`
+        },
+        body: JSON.stringify({
+          sample_data: {
+            prompt: 'Turn on living room lights when motion detected',
+            entities: '- light.living_room (Living Room Light) - light in Living Room - Current state: off',
+            current_states: '- light.living_room: off',
+            services: '- light.turn_on\n- light.turn_off',
+            current_time: new Date().toISOString(),
+            areas: 'Living Room, Kitchen',
+            domains: 'light, binary_sensor'
+          }
+        })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Show preview in a simple alert for now
+        const preview = data.preview;
+        const previewWindow = window.open('', '_blank', 'width=800,height=600');
+        previewWindow.document.write(`
+          <html>
+            <head><title>Prompt Preview - ${this._selectedPrompt.name}</title></head>
+            <body style="font-family: monospace; padding: 20px; background: #1e1e1e; color: #d4d4d4;">
+              <h3 style="color: #4fc3f7;">Prompt Preview: ${this._selectedPrompt.name}</h3>
+              <pre style="white-space: pre-wrap; background: #2d2d2d; padding: 15px; border-radius: 5px;">${preview}</pre>
+            </body>
+          </html>
+        `);
+        
+        this._closeActionsModal();
+      } else {
+        const errorData = await response.json();
+        this._showMessage('Failed to preview prompt: ' + errorData.error, 'error');
+      }
+      
+    } catch (error) {
+      console.error('Failed to preview prompt:', error);
+      this._showMessage('Failed to preview prompt: ' + error.message, 'error');
+    }
+  }
+
+  async _setActivePrompt() {
+    if (!this._selectedPrompt) return;
+    
+    try {
+      const response = await fetch(`/api/ai_config_assistant/prompts/active/${this._selectedPrompt.config_type}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this._hass.auth.access_token}`
+        },
+        body: JSON.stringify({
+          prompt_id: this._selectedPrompt.id
+        })
+      });
+      
+      if (response.ok) {
+        this._showMessage(`Set "${this._selectedPrompt.name}" as active prompt for ${this._selectedPrompt.config_type}`, 'success');
+        this._closeActionsModal();
+        await this._loadSystemPrompts(); // Reload to update active status
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+      
+    } catch (error) {
+      console.error('Failed to set active prompt:', error);
+      this._showMessage('Failed to set active prompt: ' + error.message, 'error');
+    }
+  }
+
+  _duplicatePrompt() {
+    if (this._selectedPrompt) {
+      const duplicateData = {
+        ...this._selectedPrompt,
+        name: this._selectedPrompt.name + ' (Copy)',
+        id: undefined, // Remove ID so it creates a new prompt
+        is_default: false // Duplicates are never default
+      };
+      
+      this._closeActionsModal();
+      this._openPromptModal(duplicateData);
+    }
+  }
+
+  _exportPrompt() {
+    if (!this._selectedPrompt) return;
+    
+    const exportData = {
+      name: this._selectedPrompt.name,
+      config_type: this._selectedPrompt.config_type,
+      description: this._selectedPrompt.description,
+      template: this._selectedPrompt.template,
+      variables: this._selectedPrompt.variables,
+      version: this._selectedPrompt.version || '1.0.0'
+    };
+    
+    const dataStr = JSON.stringify([exportData], null, 2);
+    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+    
+    const exportFileDefaultName = `${this._selectedPrompt.name.replace(/\s+/g, '_').toLowerCase()}_prompt.json`;
+    
+    const linkElement = document.createElement('a');
+    linkElement.setAttribute('href', dataUri);
+    linkElement.setAttribute('download', exportFileDefaultName);
+    linkElement.click();
+    
+    this._showMessage(`Prompt "${this._selectedPrompt.name}" exported successfully`, 'success');
+    this._closeActionsModal();
+  }
+
+  async _deletePrompt() {
+    if (!this._selectedPrompt || this._selectedPrompt.is_default) return;
+    
+    const confirmDelete = confirm(`Are you sure you want to delete the prompt "${this._selectedPrompt.name}"? This action cannot be undone.`);
+    
+    if (!confirmDelete) return;
+    
+    try {
+      const response = await fetch(`/api/ai_config_assistant/prompts/${this._selectedPrompt.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${this._hass.auth.access_token}`
+        }
+      });
+      
+      if (response.ok) {
+        this._showMessage(`Prompt "${this._selectedPrompt.name}" deleted successfully`, 'success');
+        this._closeActionsModal();
+        await this._loadSystemPrompts(); // Reload prompts list
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+      
+    } catch (error) {
+      console.error('Failed to delete prompt:', error);
+      this._showMessage('Failed to delete prompt: ' + error.message, 'error');
+    }
+  }
+
   });
 }
